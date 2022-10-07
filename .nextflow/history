@@ -21,8 +21,7 @@
 2022-10-07 14:56:56	9.3s	zen_bhaskara	ERR	141c2dcea51699b2e360c04a485fb177	2a861a4f-2567-486f-aa0d-a6954cfcfd83	nextflow run main.nf -resume
 2022-10-07 14:57:45	9.9s	drunk_gilbert	ERR	653c2f95293d03610dec47a38b39071a	2a861a4f-2567-486f-aa0d-a6954cfcfd83	nextflow run main.nf -resume
 2022-10-07 14:58:20	6.8s	scruffy_hilbert	ERR	02ae490d52cada3f767c1f3192a9d044	2a861a4f-2567-486f-aa0d-a6954cfcfd83	nextflow run main.nf -resume
-2022-10-07 14:59:13	6.7s	confident_gates	ERR	3dca4d2d606e43c248ff8ba85b5a2bc1	2a861a4f-2567-486f-aa0d-a6954cfcfd83	nextflow run main.nf -resume
-2022-10-07 14:59:57	9.4s	awesome_tuckerman	ERR	0f30b6f41991e7ff3ac5f17089665020	2a861a4f-2567-486f-aa0d-a6954cfcfd83	nextflow run main.nf -resume
-2022-10-07 15:00:56	9.5s	disturbed_gautier	ERR	bbf4c901c14d39f2d69458d4050efcbe	2a861a4f-2567-486f-aa0d-a6954cfcfd83	nextflow run main.nf -resume
-2022-10-07 15:01:52	9.2s	clever_wiles	ERR	d496f695a2bcfc8d28c508603a125f76	2a861a4f-2567-486f-aa0d-a6954cfcfd83	nextflow run main.nf -resume
-2022-10-07 15:02:18	9.6s	hopeful_avogadro	ERR	ce3cf2b8bf0a525cf00f310c562706f3	2a861a4f-2567-486f-aa0d-a6954cfcfd83	nextflow run main.nf -resume
+2022-10-07 15:20:19	8.7s	furious_magritte	ERR	9bd3eb201db08fbd9d85b1fe5ce209ae	ea37c229-72e5-44c5-81ad-13a45b6828a6	nextflow run main.nf
+2022-10-07 15:22:57	10.5s	nasty_kalam	ERR	de822956704dc419c304ee5b03f3790a	129cdd07-e7c7-4bd2-b1f6-f4b11658615e	nextflow run main.nf
+2022-10-07 15:23:53	25.3s	deadly_thompson	ERR	de822956704dc419c304ee5b03f3790a	611f5005-77aa-4d18-bb27-fb4bd8ff97d5	nextflow run main.nf
+2022-10-07 15:25:14	17.2s	disturbed_baekeland	ERR	2c3e2590d2f2e0bae5eb95b5b5237dd9	43f35f7e-5dfb-4238-9685-b9b908777fd7	nextflow run main.nf
