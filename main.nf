@@ -11,8 +11,8 @@ workflow {
 	
 	// input channels
 	ch_consensus_seqs = Channel
-		.fromPath( "${params.data_dir}/DHO*/**/*.fasta" )
-		.map { fasta -> tuple( file(fasta), fasta.getParent, fasta.simpleName ) }
+		.fromPath( "${params.data_dir}/DHO*/gisaid/*.fasta" )
+		.map { fasta -> tuple( file(fasta), fasta.getParent(), fasta.getSimpleName() ) }
 	
 	// Workflow steps
 	UPDATE_PANGO ( )
@@ -27,9 +27,9 @@ workflow {
 			.splitCsv( header: true )
 	)
 	
-	FIND_LONG_INFECTIONS (
-		IDENTIFY_LINEAGES.out.collect()
-	)
+	// FIND_LONG_INFECTIONS (
+	// 	IDENTIFY_LINEAGES.out.collect()
+	// )
 	
 }
 // --------------------------------------------------------------- //
@@ -56,7 +56,7 @@ process UPDATE_PANGO {
 	params.update_pango == true
 	
 	output:
-	val "pango updated"
+	val "pango updated", emit: cue
 	
 	script:
 	date = new java.util.Date().format('yy_MM_dd')
@@ -71,21 +71,21 @@ process UPDATE_PANGO {
 process IDENTIFY_LINEAGES {
 	
 	tag "DHO_${experiment_number}"
-	publishDir parentdir, pattern: '*.csv', mode: 'copy'
+	// publishDir parentdir, pattern: '*.csv', mode: 'copy'
 	
 	when:
 	params.update_pango == true && cue == "pango updated" || params.update_pango == false
 	
 	input:
 	val cue
-	tuple path(fasta), path(parentdir), val(run_name)
+	tuple path(fasta), val(parentdir), val(run_name)
 	
 	output:
 	path csv
 	
 	script:
 	date = new java.util.Date().format('yyyyMMdd')
-	experiment_number = { it.split("DHO_")[1] }
+	experiment_number = parentdir.toString().replaceAll('/gisaid','').split("DHO_")[1]
 	
 	"""
 	pangolin --outfile 'lineage_report_${date}.csv' ${fasta}
@@ -116,6 +116,6 @@ process CONCAT_CSVS {
 	"""
 }
 
-process FIND_LONG_INFECTIONS {}
+// process FIND_LONG_INFECTIONS {}
 
 // --------------------------------------------------------------- //
