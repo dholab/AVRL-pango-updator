@@ -48,6 +48,24 @@ workflow {
 // PROCESS SPECIFICATION 
 // --------------------------------------------------------------- //
 
+// process UPDATE_PANGO {
+// 	
+// 	// This process builds a new docker image with 
+// 	
+// 	when:
+// 	params.update_pango == true
+// 	
+// 	output:
+// 	val "pango updated", emit: cue
+// 	
+// 	script:
+// 	"""
+// 	docker build -t pangolin_updated:${params.date} ${params.dockerfile_path}
+// 	docker tag pangolin_updated:${params.date} ${params.docker_reg}/pangolin_updated:${params.date}
+// 	docker push ${params.docker_reg}/pangolin_updated:${params.date}
+// 	"""
+// }
+
 process UPDATE_PANGO {
 	
 	// This process builds a new docker image with 
@@ -60,9 +78,7 @@ process UPDATE_PANGO {
 	
 	script:
 	"""
-	docker build -t pangolin_updated:${params.date} ${params.dockerfile_path}
-	docker tag pangolin_updated:${params.date} ${params.docker_reg}/pangolin_updated:${params.date}
-	docker push ${params.docker_reg}/pangolin_updated:${params.date}
+	pangolin --update --update-data 
 	"""
 }
 
@@ -86,7 +102,7 @@ process IDENTIFY_LINEAGES {
 	experiment_number = parentdir.toString().replaceAll('/gisaid','').split("DHO_")[1]
 	
 	"""
-	pangolin --outfile 'lineage_report_${date}.csv' '${fasta}'
+	pangolin --outfile lineage_report_${date}.csv ${fasta}
 	"""
 	
 }
