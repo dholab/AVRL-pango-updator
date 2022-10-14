@@ -5,3 +5,4 @@ results/report.html*
 .nextflow.log*
 .DS_Store
 config/envs/env-*
+config/envs/.env-*

@@ -15,10 +15,14 @@ workflow {
 		.map { fasta -> tuple( file(fasta), fasta.getParent(), fasta.getSimpleName() ) }
 	
 	// Workflow steps
-	UPDATE_PANGO ( )
+	// UPDATE_PANGO_DOCKER ( )
+	
+	UPDATE_PANGO_CONDA ( )
+	
+	UPDATE_PANGO_CONDA.out.view()
 	
 	IDENTIFY_LINEAGES (
-		UPDATE_PANGO.out.cue,
+		UPDATE_PANGO_CONDA.out.cue,
 		ch_consensus_seqs
 	)
 	
@@ -56,12 +60,12 @@ workflow {
 // PROCESS SPECIFICATION 
 // --------------------------------------------------------------- //
 
-// process UPDATE_PANGO {
+// process UPDATE_PANGO_DOCKER {
 // 	
 // 	// This process builds a new docker image with 
 // 	
 // 	when:
-// 	params.update_pango == true
+// 	workflow.profile == 'docker'
 // 	
 // 	output:
 // 	val "pango updated", emit: cue
@@ -74,19 +78,17 @@ workflow {
 // 	"""
 // }
 
-process UPDATE_PANGO {
+process UPDATE_PANGO_CONDA {
 	
-	when:
-	params.update_pango == true
-	
-	conda 'pangolin'
+	// when:
+	// workflow.profile == 'conda'
 	
 	output:
 	env env_path, emit: cue
 	
 	script:
 	"""
-	env_path=`conda env list | awk 'NR==3' | xargs | sed 's/base//g' | sed 's/*//g' | xargs`
+	env_path=`conda env list | grep "config/envs" | xargs | sed 's/base//g' | sed 's/*//g' | xargs`
 	pangolin --update --update-data 
 	"""
 }
@@ -96,14 +98,9 @@ process IDENTIFY_LINEAGES {
 	tag "${experiment_number}"
 	// publishDir 'parentdir', pattern: '*.csv', mode: 'copy'
 	
-	when:
-	params.update_pango == true && cue == "pango updated" || params.update_pango == false
-	
 	cpus 1
 	errorStrategy 'retry'
 	maxRetries 4
-	
-	conda "env_path"
 	
 	input:
 	val env_path
@@ -118,7 +115,11 @@ process IDENTIFY_LINEAGES {
 	
 	"""
 	experiment_date=`date -r ${fasta} "+%Y-%m-%d"`
-	pangolin --threads ${task.cpus} --outfile lineage_report_${date}.csv ${fasta}
+	
+	pangolin \
+	--threads ${task.cpus} \
+	--outfile lineage_report_${date}.csv \
+	${fasta}
 	"""
 	
 }
