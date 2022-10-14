@@ -4,4 +4,4 @@ work/
 results/report.html*
 .nextflow.log*
 .DS_Store
-config/envs/*
+config/envs/env-*
