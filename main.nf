@@ -24,9 +24,14 @@ workflow {
 	
 	CONCAT_CSVS (
 		IDENTIFY_LINEAGES.out
+			.map { report, parentdir, experiment_number, experiment_date -> report }
+			.collect()
 	)
 	
+	GET_DESIGNATION_DATES ( )
+	
 	FIND_LONG_INFECTIONS (
+		GET_DESIGNATION_DATES.out,
 		IDENTIFY_LINEAGES.out
 	)
 	
@@ -71,23 +76,24 @@ workflow {
 
 process UPDATE_PANGO {
 	
-	// This process builds a new docker image with 
-	
 	when:
 	params.update_pango == true
 	
+	conda 'pangolin'
+	
 	output:
-	val "pango updated", emit: cue
+	env env_path, emit: cue
 	
 	script:
 	"""
+	env_path=`conda env list | awk 'NR==3' | xargs | sed 's/base//g' | sed 's/*//g' | xargs`
 	pangolin --update --update-data 
 	"""
 }
 
 process IDENTIFY_LINEAGES {
 	
-	tag "DHO_${experiment_number}"
+	tag "${experiment_number}"
 	// publishDir 'parentdir', pattern: '*.csv', mode: 'copy'
 	
 	when:
@@ -97,19 +103,21 @@ process IDENTIFY_LINEAGES {
 	errorStrategy 'retry'
 	maxRetries 4
 	
+	conda "env_path"
+	
 	input:
-	val cue
+	val env_path
 	tuple path(fasta), val(parentdir), val(run_name)
 	
 	output:
-	tuple path("*.csv"), val(parentdir), val(experiment_number), val(experiment_date)
+	tuple path("*.csv"), val(parentdir), val(experiment_number), env(experiment_date)
 	
 	script:
 	date = new java.util.Date().format('yyyyMMdd')
-	experiment_number = parentdir.toString().replaceAll('/gisaid','').split("DHO_")[1]
-	experiment_date
+	experiment_number = "DHO_" + parentdir.toString().replaceAll('/gisaid','').split("DHO_")[1]
 	
 	"""
+	experiment_date=`date -r ${fasta} "+%Y-%m-%d"`
 	pangolin --threads ${task.cpus} --outfile lineage_report_${date}.csv ${fasta}
 	"""
 	
@@ -123,20 +131,34 @@ process CONCAT_CSVS {
 	// produced during this run.
 	
 	tag "DHO_${experiment_number}"
+	publishDir params.results
 	
 	input:
-	tuple path(report), val(experiment_number), val(experiment_date)
+	path report_list
 	
 	script:
 	date = new java.util.Date().format('yyyyMMdd')
 	
 	"""
-	if test -f !{params.results}/all_lineage_reports_${date}.csv; then
-		touch "${params.results}/all_lineage_reports_${date}.csv"
-		echo "taxon,lineage,conflict,ambiguity_score,scorpio_call,scorpio_support,scorpio_conflict,scorpio_notes,version,pangolin_version,scorpio_version,constellation_version,is_designated,qc_status,qc_notes,note" > "${params.results}/all_lineage_reports_${date}.csv"
-	fi
+	echo "taxon,lineage,conflict,ambiguity_score,scorpio_call,scorpio_support,scorpio_conflict,scorpio_notes,version,pangolin_version,scorpio_version,constellation_version,is_designated,qc_status,qc_notes,note" > all_lineage_reports_${date}.csv
 	
-	cat \$(tail -n +2 ${report}) >> "${params.results}/all_lineage_reports_${date}.csv"
+	find . -type f -name "lineage_report*.csv" > lineage_reports.txt
+	
+	for i in `cat lineage_reports.txt`;
+	do
+		tail -n +2 \$i >> all_lineage_reports_${date}.csv
+	done
+	"""
+}
+
+process GET_DESIGNATION_DATES {
+	
+	output:
+	path "*.csv"
+	
+	script:
+	"""
+	curl -fsSL https://raw.githubusercontent.com/corneliusroemer/pango-designation-dates/main/data/lineage_designation_date.csv > lineage_designation_date.csv
 	"""
 }
 
@@ -146,6 +168,7 @@ process FIND_LONG_INFECTIONS {
 	// publishDir 'parentdir', pattern: '*.csv', mode: 'copy'
 	
 	input:
+	each path(lineage_dates)
 	tuple path(lineage_csv), val(parentdir), val(experiment_number), val(experiment_date)
 	
 	output:
@@ -153,11 +176,10 @@ process FIND_LONG_INFECTIONS {
 	
 	script:
 	"""
-	curl -fsSL https://raw.githubusercontent.com/corneliusroemer/pango-designation-dates/main/data/lineage_designation_date.csv > lineage_designation_date.csv && \
 	long_infection_finder.R \
-	${experiment_number} ${experiment_date} ${parentdir} \
+	${experiment_number} ${experiment_date} "${parentdir}" \
 	${lineage_csv} \
-	lineage_designation_date.csv
+	${lineage_dates}
 	"""
 }
 
