@@ -2,7 +2,7 @@
 
 csv_list <- list.files(getwd(), "*.csv")
 
-for (i in 1:nrow(csv_list)){
+for (i in 1:length(csv_list)){
 	
 	csv <- read.csv(csv_list[i], header = T)
 	
@@ -37,4 +37,4 @@ if (nrow(long_inf_table)==0){
 	
 }
 
-write.csv(long_inf_table, paste("long_infections_", Sys.Date(), ".csv", sep = ""), row.names = F, quote = F, na = "")
+write.csv(long_inf_table, paste("putative_long_infections_", Sys.Date(), ".csv", sep = ""), row.names = F, quote = F, na = "")

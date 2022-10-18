@@ -173,7 +173,7 @@ process FIND_LONG_INFECTIONS {
 	tuple path(lineage_csv), val(parentdir), val(experiment_number), val(experiment_date)
 	
 	output:
-	path "*.csv"
+	path "*putative_long_infections*.csv"
 	
 	script:
 	"""

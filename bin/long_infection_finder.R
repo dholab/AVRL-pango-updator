@@ -3,7 +3,7 @@ args = commandArgs(trailingOnly=TRUE)
 
 # bringing in sequencing run metadata
 experiment_name <- args[1]
-experiment_date <- args[2] ; experiment_date
+experiment_date <- as.Date(args[2]) ; experiment_date
 
 # reading in pango lineages and designation dates
 lineage_csv <- read.csv(args[3])
@@ -15,23 +15,27 @@ dates$designation_date <- as.Date(dates$designation_date)
 # preparing a data frame to hold long infection data, if detected
 long_infections <- data.frame(sample = NA,
                               lineage = NA,
-                              lineage_designation_date = as.Date(NA),
-                              experiment_date = as.Date(NA),
-                              experiment_number = NA,
+                              lineage_designation_date = NA,
+                              experiment_date = NA,
+                              experiment_name = NA,
                               pango_version = NA)
 
+# diff <- c()
 for (i in 1:nrow(lineage_csv)){
   
   lineage <- lineage_csv$lineage[i]
-  designation_date <- dates[dates$designation_date==lineage, 1]
+  designation_date <- dates[dates$lineage==lineage, 2]
   
-  if ( (experiment_date - designation_date) >= 90 ){
+  # diff <- c(diff, as.numeric(experiment_date - designation_date))
+  # mean(diff) ; hist(diff, breaks = 20)
+  
+  if ( as.numeric(experiment_date - designation_date) >= 240 ){
     
     new_row <- c(lineage_csv$taxon[i],
                  lineage,
-                 designation_date,
-                 experiment_date,
-                 experiment_number,
+                 as.character(designation_date),
+                 as.character(experiment_date),
+                 experiment_name,
                  lineage_csv$pangolin_version[i])
     long_infections <- rbind(long_infections, new_row)
     
@@ -48,13 +52,13 @@ if (nrow(long_infections)==0){
   
   null_row <- rep(NA, times = ncol(long_infections))
   null_row[1] <- paste("No putative long infections were identified in experiment",
-                       experiment_number, "on", Sys.Date(), sep = " ")
+                       experiment_name, "on", Sys.Date(), sep = " ")
   long_infections <- rbind(long_inf_table, null_row)
   
 }
 
 write.csv(long_infections,
-          paste(experiment_number,
+          paste(experiment_name,
                 "_putative_long_infections_",
                 Sys.Date(), 
                 ".csv", sep = ""),
