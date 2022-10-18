@@ -134,7 +134,7 @@ process IDENTIFY_LINEAGES {
 	tuple path(fasta), val(parentdir), val(run_name)
 	
 	output:
-	tuple path("*.csv"), val(parentdir), val(experiment_number), env(experiment_date)
+	tuple path("*.csv"), val(parentdir), val(run_name), val(experiment_number), env(experiment_date)
 	
 	script:
 	experiment_number = "DHO_" + parentdir.toString().replaceAll('/gisaid','').split("DHO_")[1]
@@ -204,14 +204,14 @@ process FIND_LONG_INFECTIONS {
 	
 	input:
 	each path(lineage_dates)
-	tuple path(lineage_csv), val(parentdir), val(experiment_number), val(experiment_date)
+	tuple path(lineage_csv), val(run_name), val(parentdir), val(experiment_number), val(experiment_date)
 	
 	output:
 	path "*putative_long_infections*.csv"
 	
 	script:
 	"""
-	long_infection_finder.R ${experiment_number} ${experiment_date} ${lineage_csv} ${lineage_dates}
+	long_infection_finder.R ${run_name} ${experiment_number} ${experiment_date} ${lineage_csv} ${lineage_dates}
 	"""
 }
 

@@ -2,12 +2,13 @@
 args = commandArgs(trailingOnly=TRUE)
 
 # bringing in sequencing run metadata
-experiment_name <- args[1]
-experiment_date <- as.Date(args[2]) ; experiment_date
+fasta_basename <- args[1]
+experiment_name <- args[2]
+experiment_date <- as.Date(args[3]) ; experiment_date
 
 # reading in pango lineages and designation dates
-lineage_csv <- read.csv(args[3])
-dates <- read.csv(args[4])
+lineage_csv <- read.csv(args[4])
+dates <- read.csv(args[5])
 
 # preparing a data frame to hold long infection data, if detected
 long_infections <- data.frame(sample = NA,
@@ -70,7 +71,7 @@ if (nrow(long_infections)==1 &&
 }
 
 write.csv(long_infections,
-          paste(experiment_name,
+          paste(fasta_basename,
                 "_putative_long_infections_",
                 Sys.Date(), 
                 ".csv", sep = ""),
