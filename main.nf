@@ -12,6 +12,7 @@ workflow {
 	// input channels
 	ch_consensus_seqs = Channel
 		.fromPath( "${params.data_dir}/DHO*/gisaid/*.fasta" )
+		.unique()
 		.map { fasta -> tuple( file(fasta), fasta.getParent(), fasta.getSimpleName() ) }
 	
 	// Workflow steps for reclassifying pango lineages
@@ -46,37 +47,36 @@ workflow {
 	
 	CONCAT_LONG_INFECTIONS (
 		FIND_LONG_INFECTIONS.out
-			.unique()
 			.collect()
 	)
 	
 	// Workflow steps for classifying RBD mutation levels relative to BA.2
 	GET_BA_2_SEQ ( )
 	
-	MAP_TO_BA_2 (
-		GET_BA_2_SEQ.out
-			.splitFasta( record: [id: true, seqString: true, text: true ] )
-			.filter { record -> record.id == "BA.2" }
-			.map { record -> record.text },
-		ch_consensus_seqs
-			.filter { File(it[0]).lastModified() >> Date.parseToStringDate("2021-12-07").format('yyyy-M-d') }
-			.map { fasta, parentdir, run_name -> fasta }
-			.splitFasta( record: [id: true, text: true ] )
-			.map { record -> record.id.replaceAll("//", "_"), record.text }
-	)
+	// MAP_TO_BA_2 (
+	// 	GET_BA_2_SEQ.out
+	// 		.splitFasta( record: [id: true, seqString: true, text: true ] )
+	// 		.filter { record -> record.id == "BA.2" }
+	// 		.map { record -> record.text },
+	// 	ch_consensus_seqs
+	// 		.map { fasta, parentdir, run_name -> fasta }
+	// 		.filter { File(it).lastModified() >> Date.parseToStringDate("2021-12-07").format('yyyy-M-d') }
+	// 		.splitFasta( record: [id: true, text: true ] )
+	// 		.map { record -> record.id.replaceAll("//", "_"), record.text }
+	// )
 	
-	CALL_RBD_VARIANTS (
-		GET_BA_2_SEQ.out
-			.splitFasta( record: [id: true, seqString: true, text: true ] )
-			.filter { record -> record.id == "BA.2" }
-			.map { record -> record.text },
-		MAP_TO_BA2.out
-	)
-	
-	CLASSIFY_LEVELS (
-		CALL_RBD_VARIANTS.out.collect(),
-		CONCAT_CSVS.out
-	)
+	// CALL_RBD_VARIANTS (
+	// 	GET_BA_2_SEQ.out
+	// 		.splitFasta( record: [id: true, seqString: true, text: true ] )
+	// 		.filter { record -> record.id == "BA.2" }
+	// 		.map { record -> record.text },
+	// 	MAP_TO_BA2.out
+	// )
+	// 
+	// CLASSIFY_LEVELS (
+	// 	CALL_RBD_VARIANTS.out.collect(),
+	// 	CONCAT_CSVS.out
+	// )
 	
 	
 }
@@ -144,7 +144,7 @@ process IDENTIFY_LINEAGES {
 	
 	pangolin \
 	--threads ${task.cpus} \
-	--outfile ${experiment_number}_lineage_report_${params.date}.csv \
+	--outfile ${run_name}_lineage_report_${params.date}.csv \
 	${fasta}
 	"""
 	
