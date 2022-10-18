@@ -14,7 +14,7 @@ workflow {
 		.fromPath( "${params.data_dir}/DHO*/gisaid/*.fasta" )
 		.map { fasta -> tuple( file(fasta), fasta.getParent(), fasta.getSimpleName() ) }
 	
-	// Workflow steps
+	// Workflow steps for reclassifying pango lineages
 	UPDATE_PANGO_DOCKER ( )
 	
 	UPDATE_PANGO_CONDA ( )
@@ -36,6 +36,7 @@ workflow {
 			.collect()
 	)
 	
+	// Workflow steps for identifying putative prolonged infections
 	GET_DESIGNATION_DATES ( )
 	
 	FIND_LONG_INFECTIONS (
@@ -44,8 +45,39 @@ workflow {
 	)
 	
 	CONCAT_LONG_INFECTIONS (
-		FIND_LONG_INFECTIONS.out.collect()
+		FIND_LONG_INFECTIONS.out
+			.unique()
+			.collect()
 	)
+	
+	// Workflow steps for classifying RBD mutation levels relative to BA.2
+	GET_BA_2_SEQ ( )
+	
+	MAP_TO_BA_2 (
+		GET_BA_2_SEQ.out
+			.splitFasta( record: [id: true, seqString: true, text: true ] )
+			.filter { record -> record.id == "BA.2" }
+			.map { record -> record.text },
+		ch_consensus_seqs
+			.filter { File(it[0]).lastModified() >> Date.parseToStringDate("2021-12-07").format('yyyy-M-d') }
+			.map { fasta, parentdir, run_name -> fasta }
+			.splitFasta( record: [id: true, text: true ] )
+			.map { record -> record.id.replaceAll("//", "_"), record.text }
+	)
+	
+	CALL_RBD_VARIANTS (
+		GET_BA_2_SEQ.out
+			.splitFasta( record: [id: true, seqString: true, text: true ] )
+			.filter { record -> record.id == "BA.2" }
+			.map { record -> record.text },
+		MAP_TO_BA2.out
+	)
+	
+	CLASSIFY_LEVELS (
+		CALL_RBD_VARIANTS.out.collect(),
+		CONCAT_CSVS.out
+	)
+	
 	
 }
 // --------------------------------------------------------------- //
@@ -148,6 +180,8 @@ process CONCAT_CSVS {
 
 process GET_DESIGNATION_DATES {
 	
+	publishDir params.results, mode: 'copy'
+	
 	when:
 	params.identify_long_infections == true
 	
@@ -196,5 +230,79 @@ process CONCAT_LONG_INFECTIONS {
 	concat_long_infections.R
 	"""
 	
+}
+
+process GET_BA_2_SEQ {
+	
+	publishDir params.results, mode: 'copy'
+	
+	when:
+	params.classify_mutation_levels == true
+	
+	output:
+	path "*.fasta"
+	
+	script:
+	"""
+	
+	curl -fsSL https://github.com/corneliusroemer/pango-sequences/blob/main/data/pango_consensus_sequences.fasta.zstd?raw=true > pango_consensus_sequences.fasta.zstd
+	unzstd pango_consensus_sequences.fasta.zstd
+	
+	"""
+}
+
+process MAP_TO_BA_2 {
+	
+	tag "${experiment_number}"
+	
+	input:
+	each path(refseq)
+	tuple val(sample), path(fasta)
+	
+	output:
+	tuple path("*.mpileup"), val(sample)
+	
+	script:
+	"""
+	minimap2 -a ${refseq} ${fasta} \
+	  | samtools view -Sb - \
+	  | samtools sort - > tempfile
+	  samtools mpileup -aa -f ${refseq} --output ${sample}.mpileup tempfile
+	"""
+	
+}
+
+process CALL_RBD_VARIANTS {
+	
+	tag "${experiment_number}"
+	
+	input:
+	each path(refseq)
+	tuple path(mpileup), val(sample)
+	
+	output:
+	path "*.tsv"
+	
+	script:
+	"""
+	cat ${mpileup} \
+	  | ivar variants -p ${sample}_consensus_variant_table \
+	  -t 0 -m 1 -q 1 -r ${refseq} -g ${params.refgff}
+	"""
+	
+}
+
+process CLASSIFY_LEVELS {
+	
+	input:
+	path variant_table_list
+	path lineages
+	
+	output:
+	
+	script:
+	"""
+	rbd_lineage_classifer.R
+	"""
 }
 // --------------------------------------------------------------- //
