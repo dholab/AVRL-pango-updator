@@ -1,6 +1,5 @@
 work/
 .nextflow/
-results/
 
 results/report.html*
 .nextflow.log*
