@@ -15,14 +15,18 @@ workflow {
 		.map { fasta -> tuple( file(fasta), fasta.getParent(), fasta.getSimpleName() ) }
 	
 	// Workflow steps
-	// UPDATE_PANGO_DOCKER ( )
+	UPDATE_PANGO_DOCKER ( )
 	
 	UPDATE_PANGO_CONDA ( )
 	
-	UPDATE_PANGO_CONDA.out.view()
+	println "pangolin updated to version:"
+	UPDATE_PANGO_DOCKER.out ? UPDATE_PANGO_CONDA.out.view() : UPDATE_PANGO_DOCKER.out.view()
 	
 	IDENTIFY_LINEAGES (
-		UPDATE_PANGO_CONDA.out.cue,
+		UPDATE_PANGO_DOCKER.out.cue
+			.mix (
+				UPDATE_PANGO_CONDA.out.cue
+			),
 		ch_consensus_seqs
 	)
 	
@@ -47,49 +51,40 @@ workflow {
 // --------------------------------------------------------------- //
 
 
-
-// DERIVATIVE PARAMETER SPECIFICATION
-// --------------------------------------------------------------- //
-// Derivative parameters, mostly for making specific results folders
-
-
-// --------------------------------------------------------------- //
-
-
-
 // PROCESS SPECIFICATION 
 // --------------------------------------------------------------- //
 
-// process UPDATE_PANGO_DOCKER {
-// 	
-// 	// This process builds a new docker image with 
-// 	
-// 	when:
-// 	workflow.profile == 'docker'
-// 	
-// 	output:
-// 	val "pango updated", emit: cue
-// 	
-// 	script:
-// 	"""
-// 	docker build -t pangolin_updated:${params.date} ${params.dockerfile_path}
-// 	docker tag pangolin_updated:${params.date} ${params.docker_reg}/pangolin_updated:${params.date}
-// 	docker push ${params.docker_reg}/pangolin_updated:${params.date}
-// 	"""
-// }
-
-process UPDATE_PANGO_CONDA {
+process UPDATE_PANGO_DOCKER {
 	
-	// when:
-	// workflow.profile == 'conda'
+	// This process builds a new docker image with 
+	
+	when:
+	workflow.profile == 'docker'
 	
 	output:
-	env env_path, emit: cue
+	env version, emit: cue
 	
 	script:
 	"""
-	env_path=`conda env list | grep "config/envs" | xargs | sed 's/base//g' | sed 's/*//g' | xargs`
-	pangolin --update --update-data 
+	docker build -t pangolin_updated:${params.date} ${params.dockerfile_path}
+	docker tag pangolin_updated:${params.date} ${params.docker_reg}/pangolin_updated:${params.date}
+	docker push ${params.docker_reg}/pangolin_updated:${params.date}
+	version=`pangolin --version | sed 's/pangolin//g' | xargs`
+	"""
+}
+
+process UPDATE_PANGO_CONDA {
+	
+	when:
+	workflow.profile == 'conda'
+	
+	output:
+	env version, emit: cue
+	
+	script:
+	"""
+	pangolin --update --update-data
+	version=`pangolin --version | sed 's/pangolin//g' | xargs`
 	"""
 }
 
@@ -103,14 +98,13 @@ process IDENTIFY_LINEAGES {
 	maxRetries 4
 	
 	input:
-	val env_path
+	each cue
 	tuple path(fasta), val(parentdir), val(run_name)
 	
 	output:
 	tuple path("*.csv"), val(parentdir), val(experiment_number), env(experiment_date)
 	
 	script:
-	date = new java.util.Date().format('yyyyMMdd')
 	experiment_number = "DHO_" + parentdir.toString().replaceAll('/gisaid','').split("DHO_")[1]
 	
 	"""
@@ -118,7 +112,7 @@ process IDENTIFY_LINEAGES {
 	
 	pangolin \
 	--threads ${task.cpus} \
-	--outfile lineage_report_${date}.csv \
+	--outfile ${experiment_number}_lineage_report_${params.date}.csv \
 	${fasta}
 	"""
 	
@@ -131,28 +125,31 @@ process CONCAT_CSVS {
 	// column names. Then, it appends each row from each lineage report
 	// produced during this run.
 	
-	tag "DHO_${experiment_number}"
-	publishDir params.results
+	publishDir params.results, pattern: 'all_lineage_reports*.csv', mode: 'copy'
 	
 	input:
 	path report_list
 	
+	output:
+	path "all_lineage_reports*.csv"
+	
 	script:
-	date = new java.util.Date().format('yyyyMMdd')
-	
 	"""
-	echo "taxon,lineage,conflict,ambiguity_score,scorpio_call,scorpio_support,scorpio_conflict,scorpio_notes,version,pangolin_version,scorpio_version,constellation_version,is_designated,qc_status,qc_notes,note" > all_lineage_reports_${date}.csv
+	find . -name "*.csv" > lineage_reports.txt
 	
-	find . -type f -name "lineage_report*.csv" > lineage_reports.txt
+	echo "taxon,lineage,conflict,ambiguity_score,scorpio_call,scorpio_support,scorpio_conflict,scorpio_notes,version,pangolin_version,scorpio_version,constellation_version,is_designated,qc_status,qc_notes,note" > all_lineage_reports_${params.date}.csv
 	
 	for i in `cat lineage_reports.txt`;
 	do
-		tail -n +2 \$i >> all_lineage_reports_${date}.csv
+		tail -n +2 \$i >> all_lineage_reports_${params.date}.csv
 	done
 	"""
 }
 
 process GET_DESIGNATION_DATES {
+	
+	when:
+	params.identify_long_infections == true
 	
 	output:
 	path "*.csv"
@@ -166,7 +163,10 @@ process GET_DESIGNATION_DATES {
 process FIND_LONG_INFECTIONS {
 	
 	tag "${experiment_number}"
-	// publishDir 'parentdir', pattern: '*.csv', mode: 'copy'
+	// publishDir parentdir, pattern: '*.csv', mode: 'copy'
+	
+	when:
+	params.identify_long_infections == true
 	
 	input:
 	each path(lineage_dates)
@@ -177,10 +177,7 @@ process FIND_LONG_INFECTIONS {
 	
 	script:
 	"""
-	long_infection_finder.R \
-	${experiment_number} ${experiment_date} "${parentdir}" \
-	${lineage_csv} \
-	${lineage_dates}
+	long_infection_finder.R ${experiment_number} ${experiment_date} ${lineage_csv} ${lineage_dates}
 	"""
 }
 

@@ -2,13 +2,12 @@
 args = commandArgs(trailingOnly=TRUE)
 
 # bringing in sequencing run metadata
-experiment_number <- args[1]
-experiment_date <- as.Date(args[2])
-parentdir <- args[3]
+experiment_name <- args[1]
+experiment_date <- args[2] ; experiment_date
 
 # reading in pango lineages and designation dates
-lineage_csv <- read.csv(args[4])
-dates <- read.csv(args[5])
+lineage_csv <- read.csv(args[3])
+dates <- read.csv(args[4])
 
 # ensuring dates are properly formatted
 dates$designation_date <- as.Date(dates$designation_date)
