@@ -12,8 +12,10 @@ nextflow run dholab/AVRL-pango-updator \
 --classify_mutation_levels true \
 ```
 
-
+Or, if you would prefer to clone the workflow first:
 ```
+git clone https://github.com/dholab/AVRL-pango-updator.git .
+
 nextflow run main.nf \
 -profile conda \
 --update_pango true \

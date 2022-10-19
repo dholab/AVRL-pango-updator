@@ -11,7 +11,7 @@ lineage_csv <- read.csv(args[4])
 dates <- read.csv(args[5])
 
 # defining number of days past designation to consider an infection prolonged
-days_infected = args[6]
+days_infected = as.numeric(args[6])
 
 # preparing a data frame to hold long infection data, if detected
 long_infections <- data.frame(sample = NA,

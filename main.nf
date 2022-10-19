@@ -54,30 +54,19 @@ workflow {
 	GET_BA_2_SEQ ( )
 	
 	MAP_TO_BA_2 (
-		GET_BA_2_SEQ.out
-			.splitFasta( record: [id: true, text: true ] )
-			.filter { record -> record.id == "BA.2" }
-			.map { record -> record.text }
-			.view(),
+		GET_BA_2_SEQ.out,
 		ch_consensus_seqs
-			.map { fasta, parentdir, run_name -> fasta }
-			.filter { File(it).lastModified() >> Date.parseToStringDate("2021-12-07").format('yyyy-M-d') }
-			.splitFasta( record: [id: true, text: true ] )
-			.map { record -> record.id.replaceAll("/", "_"), record.text }
 	)
 	
-	// CALL_RBD_VARIANTS (
-	// 	GET_BA_2_SEQ.out
-	// 		.splitFasta( record: [id: true, seqString: true, text: true ] )
-	// 		.filter { record -> record.id == "BA.2" }
-	// 		.map { record -> record.text },
-	// 	MAP_TO_BA2.out
-	// )
-	// 
-	// CLASSIFY_LEVELS (
-	// 	CALL_RBD_VARIANTS.out.collect(),
-	// 	CONCAT_CSVS.out
-	// )
+	CALL_RBD_VARIANTS (
+		GET_BA_2_SEQ.out,
+		MAP_TO_BA_2.out
+	)
+	
+	CLASSIFY_LEVELS (
+		CALL_RBD_VARIANTS.out.collect(),
+		CONCAT_CSVS.out
+	)
 	
 	
 }
@@ -172,7 +161,10 @@ process CONCAT_CSVS {
 	
 	echo "taxon,lineage,conflict,ambiguity_score,scorpio_call,scorpio_support,scorpio_conflict,scorpio_notes,version,pangolin_version,scorpio_version,constellation_version,is_designated,qc_status,qc_notes,note" > all_lineage_reports_${params.date}.csv
 	
-	tail -n +2 ${report} >> "${params.results}/all_lineage_reports_${params.date}.csv"
+	for i in `cat lineage_reports.txt`;
+	do
+		tail -n +2 \$i >> all_lineage_reports_${params.date}.csv
+	done
 	"""
 }
 
@@ -247,6 +239,8 @@ process GET_BA_2_SEQ {
 	curl -fsSL https://github.com/corneliusroemer/pango-sequences/blob/main/data/pango_consensus_sequences.fasta.zstd?raw=true > pango_consensus_sequences.fasta.zstd
 	unzstd pango_consensus_sequences.fasta.zstd
 	
+	ba_2_isolator.R
+	
 	"""
 }
 
@@ -254,9 +248,12 @@ process MAP_TO_BA_2 {
 	
 	tag "${experiment_number}"
 	
+	when:
+	file(fasta).lastModified() >> Date.parseToStringDate("2021-12-07").format('yyyy-M-d')
+	
 	input:
 	each path(refseq)
-	tuple val(sample), path(fasta)
+	tuple path(fasta), val(parentdir), val(run_name)
 	
 	output:
 	tuple path("*.mpileup"), val(sample)
