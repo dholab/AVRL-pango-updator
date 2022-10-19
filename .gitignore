@@ -1,6 +1,7 @@
 work/
 .nextflow/
 
+resources/update_pango_docker/
 results/report.html*
 .nextflow.log*
 .DS_Store

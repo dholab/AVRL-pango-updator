@@ -37,4 +37,10 @@ if (nrow(long_inf_table)==0){
 	
 }
 
+if (nrow(long_inf_table)>0){
+	
+	long_inf_table$days_to_define_prolonged_infections <- args[1]
+	
+}
+
 write.csv(long_inf_table, paste("putative_long_infections_", Sys.Date(), ".csv", sep = ""), row.names = F, quote = F, na = "")

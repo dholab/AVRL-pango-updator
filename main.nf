@@ -12,15 +12,15 @@ workflow {
 	// input channels
 	ch_consensus_seqs = Channel
 		.fromPath( "${params.data_dir}/DHO*/gisaid/*.fasta" )
-		.unique()
 		.map { fasta -> tuple( file(fasta), fasta.getParent(), fasta.getSimpleName() ) }
+		.filter { !it[2].contains(" copy") }
 	
 	// Workflow steps for reclassifying pango lineages
 	UPDATE_PANGO_DOCKER ( )
 	
 	UPDATE_PANGO_CONDA ( )
 	
-	println "pangolin updated to version:"
+	println "Pangolin updated to version:"
 	UPDATE_PANGO_DOCKER.out ? UPDATE_PANGO_CONDA.out.view() : UPDATE_PANGO_DOCKER.out.view()
 	
 	IDENTIFY_LINEAGES (
@@ -33,7 +33,7 @@ workflow {
 	
 	CONCAT_CSVS (
 		IDENTIFY_LINEAGES.out
-			.map { report, parentdir, experiment_number, experiment_date -> report }
+			.map { report, run_name, parentdir, experiment_number, experiment_date -> report }
 			.collect()
 	)
 	
@@ -53,17 +53,18 @@ workflow {
 	// Workflow steps for classifying RBD mutation levels relative to BA.2
 	GET_BA_2_SEQ ( )
 	
-	// MAP_TO_BA_2 (
-	// 	GET_BA_2_SEQ.out
-	// 		.splitFasta( record: [id: true, seqString: true, text: true ] )
-	// 		.filter { record -> record.id == "BA.2" }
-	// 		.map { record -> record.text },
-	// 	ch_consensus_seqs
-	// 		.map { fasta, parentdir, run_name -> fasta }
-	// 		.filter { File(it).lastModified() >> Date.parseToStringDate("2021-12-07").format('yyyy-M-d') }
-	// 		.splitFasta( record: [id: true, text: true ] )
-	// 		.map { record -> record.id.replaceAll("//", "_"), record.text }
-	// )
+	MAP_TO_BA_2 (
+		GET_BA_2_SEQ.out
+			.splitFasta( record: [id: true, text: true ] )
+			.filter { record -> record.id == "BA.2" }
+			.map { record -> record.text }
+			.view(),
+		ch_consensus_seqs
+			.map { fasta, parentdir, run_name -> fasta }
+			.filter { File(it).lastModified() >> Date.parseToStringDate("2021-12-07").format('yyyy-M-d') }
+			.splitFasta( record: [id: true, text: true ] )
+			.map { record -> record.id.replaceAll("/", "_"), record.text }
+	)
 	
 	// CALL_RBD_VARIANTS (
 	// 	GET_BA_2_SEQ.out
@@ -123,7 +124,7 @@ process UPDATE_PANGO_CONDA {
 process IDENTIFY_LINEAGES {
 	
 	tag "${experiment_number}"
-	// publishDir 'parentdir', pattern: '*.csv', mode: 'copy'
+	// publishDir "${parentdir}", pattern: '*.csv', mode: 'copy'
 	
 	cpus 1
 	errorStrategy 'retry'
@@ -134,7 +135,7 @@ process IDENTIFY_LINEAGES {
 	tuple path(fasta), val(parentdir), val(run_name)
 	
 	output:
-	tuple path("*.csv"), val(parentdir), val(run_name), val(experiment_number), env(experiment_date)
+	tuple path("*.csv"), val(run_name), val(parentdir), val(experiment_number), env(experiment_date)
 	
 	script:
 	experiment_number = "DHO_" + parentdir.toString().replaceAll('/gisaid','').split("DHO_")[1]
@@ -144,8 +145,8 @@ process IDENTIFY_LINEAGES {
 	
 	pangolin \
 	--threads ${task.cpus} \
-	--outfile ${run_name}_lineage_report_${params.date}.csv \
-	${fasta}
+	--outfile ${experiment_number}_lineages_updated_${params.date}.csv \
+	"${fasta}"
 	"""
 	
 }
@@ -160,7 +161,7 @@ process CONCAT_CSVS {
 	publishDir params.results, pattern: 'all_lineage_reports*.csv', mode: 'copy'
 	
 	input:
-	path report_list
+	path report_list, stageAs: 'report??.csv'
 	
 	output:
 	path "all_lineage_reports*.csv"
@@ -171,12 +172,10 @@ process CONCAT_CSVS {
 	
 	echo "taxon,lineage,conflict,ambiguity_score,scorpio_call,scorpio_support,scorpio_conflict,scorpio_notes,version,pangolin_version,scorpio_version,constellation_version,is_designated,qc_status,qc_notes,note" > all_lineage_reports_${params.date}.csv
 	
-	for i in `cat lineage_reports.txt`;
-	do
-		tail -n +2 \$i >> all_lineage_reports_${params.date}.csv
-	done
+	tail -n +2 ${report} >> "${params.results}/all_lineage_reports_${params.date}.csv"
 	"""
 }
+
 
 process GET_DESIGNATION_DATES {
 	
@@ -197,7 +196,7 @@ process GET_DESIGNATION_DATES {
 process FIND_LONG_INFECTIONS {
 	
 	tag "${experiment_number}"
-	// publishDir parentdir, pattern: '*.csv', mode: 'copy'
+	// publishDir "${parentdir}", pattern: '*.csv', mode: 'copy'
 	
 	when:
 	params.identify_long_infections == true
@@ -211,7 +210,7 @@ process FIND_LONG_INFECTIONS {
 	
 	script:
 	"""
-	long_infection_finder.R ${run_name} ${experiment_number} ${experiment_date} ${lineage_csv} ${lineage_dates}
+	long_infection_finder.R ${run_name} ${experiment_number} ${experiment_date} ${lineage_csv} ${lineage_dates} ${params.days_of_infection}
 	"""
 }
 
@@ -220,14 +219,14 @@ process CONCAT_LONG_INFECTIONS {
 	publishDir params.results, mode: 'copy'
 	
 	input:
-	path file_list
+	path file_list, stageAs: 'infections??.csv'
 	
 	output:
 	path "*.csv"
 	
 	script:
 	"""
-	concat_long_infections.R
+	concat_long_infections.R ${params.days_of_infection}
 	"""
 	
 }

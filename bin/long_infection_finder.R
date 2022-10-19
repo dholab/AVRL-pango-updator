@@ -10,6 +10,9 @@ experiment_date <- as.Date(args[3]) ; experiment_date
 lineage_csv <- read.csv(args[4])
 dates <- read.csv(args[5])
 
+# defining number of days past designation to consider an infection prolonged
+days_infected = args[6]
+
 # preparing a data frame to hold long infection data, if detected
 long_infections <- data.frame(sample = NA,
                               lineage = NA,
@@ -37,7 +40,7 @@ if (nrow(lineage_csv) != 0){
     # diff <- c(diff, as.numeric(experiment_date - designation_date))
     # mean(diff) ; hist(diff, breaks = 20)
     
-    if ( as.numeric(experiment_date - designation_date) >= 240 ){
+    if ( as.numeric(experiment_date - designation_date) >= days_infected ){
       
       new_row <- c(lineage_csv$taxon[i],
                    lineage,
@@ -63,10 +66,8 @@ if (nrow(lineage_csv) != 0){
 if (nrow(long_infections)==1 &&
     is.na(long_infections[1, "sample"])){
   
-  null_row <- rep(NA, times = ncol(long_infections))
-  null_row[1] <- paste("No putative long infections were identified in experiment",
+  long_infections[1,1] <- paste("No putative long infections were identified in experiment",
                        experiment_name, "on", Sys.Date(), sep = " ")
-  long_infections[1,] <- null_row
   
 }
 
