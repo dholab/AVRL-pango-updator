@@ -15,6 +15,7 @@ for (i in 1:length(csv_list)){
 		
 	} else if (i == 1 & grepl("No putative long infections", csv[1,1]) ){
 		
+		long_inf_table <- csv
 		long_inf_table <- long_inf_table[FALSE, ]
 		
 	}

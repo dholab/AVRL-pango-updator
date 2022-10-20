@@ -56,6 +56,9 @@ workflow {
 	MAP_TO_BA_2 (
 		GET_BA_2_SEQ.out,
 		ch_consensus_seqs
+			.map { fasta, parentdir, simplename -> fasta }
+			.splitFasta( record: [ id: true, file: true ] )
+			.map { record -> tuple file(record.file), record.id }
 	)
 	
 	CALL_RBD_VARIANTS (
@@ -254,12 +257,14 @@ process MAP_TO_BA_2 {
 	
 	input:
 	each path(refseq)
-	tuple path(fasta), val(parentdir), val(run_name)
+	tuple path(fasta), val(id)
 	
 	output:
 	tuple path("*.mpileup"), val(sample)
 	
 	script:
+	experiment_number = "DHO_" + parentdir.toString().replaceAll('/gisaid','').split("DHO_")[1]
+	
 	"""
 	minimap2 -a ${refseq} ${fasta} \
 	  | samtools view -Sb - \
