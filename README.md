@@ -2,7 +2,7 @@
 
 ## Overview
 
-This pipeline was designed to update Pangolin lineages for an arbitrary number of SARS-CoV-2 consensus sequences and then extend these findings with some additional analysis. In all, the pipeline goes through three major steps
+This pipeline was designed to update Pangolin lineages for an arbitrary number of SARS-CoV-2 consensus sequences and then extend these findings with some additional analysis. In all, the pipeline goes through three major steps:
 
 1. Ensuring that it uses the most updated version of [Pangolin](https://github.com/cov-lineages/pangolin) to reclassify any number of FASTA-formatted consensus sequences. _NOTE:_ This pipeline does not assemble consensus sequences itself. These files must be produced beforehand.
 2. Identifying putative prolonged infections from the now-reclassified consensus sequences.
