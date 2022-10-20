@@ -112,11 +112,11 @@ nextflow run main.nf \
 -resume
 ```
 
-### Pipeline Compute Resources
+## Pipeline Compute Resources
 
 This pipeline will run most efficiently when at least eight (logical) cores and 16 gigabytes of RAM, though the more cores you can make available to it, the faster it will run.
 
-### Inputs and Outputs
+## Inputs and Outputs
 
 As an input, specified with the flag `--data_dir`, the pipeline takes a folder to search recursively through for FASTA-formatted sequence files. These sequences must be consensus sequences.
 
@@ -129,7 +129,7 @@ The workflow produces four outputs in the folder specified with `--results`:
 
 Finally, the workflow also produces a visualization of itself called `lineager-analyzer-visualization.png`. This is analogous to a Directed Acyclic Graph (DAG).
 
-### Pipeline Configuration
+## Pipeline Configuration
 
 This pipeline is configured with parameters in the file `nextflow.config`, many of which have already been mentioned above. In general, file paths and pipeline settings are specified there instead of having them hard-coded into the pipeline script `main.nf`.
 
