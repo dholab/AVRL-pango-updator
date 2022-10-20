@@ -10,25 +10,32 @@ workflow {
 	
 	
 	// input channels
-	ch_consensus_seqs = Channel
+	ch_consensus_files = Channel
 		.fromPath( "${params.data_dir}/DHO*/gisaid/*.fasta" )
 		.map { fasta -> tuple( file(fasta), fasta.getParent(), fasta.getSimpleName() ) }
 		.filter { !it[2].contains(" copy") }
+		
+	ch_post_ba2_seqs = Channel
+		.fromPath( "${params.data_dir}/DHO*/gisaid/*.fasta" )
+		// .filter { it.lastModified().after("2021-12-07") }
+		.splitFasta( file: true )
 	
 	// Workflow steps for reclassifying pango lineages
 	UPDATE_PANGO_DOCKER ( )
 	
 	UPDATE_PANGO_CONDA ( )
 	
-	println "Pangolin updated to version:"
-	UPDATE_PANGO_DOCKER.out ? UPDATE_PANGO_CONDA.out.view() : UPDATE_PANGO_DOCKER.out.view()
+	if( params.update_pango == true ){
+		println "Pangolin updated to version:"
+		UPDATE_PANGO_DOCKER.out ? UPDATE_PANGO_CONDA.out.view() : UPDATE_PANGO_DOCKER.out.view()
+	}
 	
 	IDENTIFY_LINEAGES (
 		UPDATE_PANGO_DOCKER.out.cue
 			.mix (
 				UPDATE_PANGO_CONDA.out.cue
 			),
-		ch_consensus_seqs
+		ch_consensus_files
 	)
 	
 	CONCAT_CSVS (
@@ -55,10 +62,7 @@ workflow {
 	
 	MAP_TO_BA_2 (
 		GET_BA_2_SEQ.out,
-		ch_consensus_seqs
-			.map { fasta, parentdir, simplename -> fasta }
-			.splitFasta( record: [ id: true, file: true ] )
-			.map { record -> tuple file(record.file), record.id }
+		ch_post_ba2_seqs
 	)
 	
 	CALL_RBD_VARIANTS (
@@ -82,10 +86,10 @@ workflow {
 
 process UPDATE_PANGO_DOCKER {
 	
-	// This process builds a new docker image with 
+	// This process builds a new docker image with the latest available pangolin version
 	
 	when:
-	workflow.profile == 'docker'
+	workflow.profile == 'docker' && params.update_pango == true
 	
 	output:
 	env version, emit: cue
@@ -101,8 +105,10 @@ process UPDATE_PANGO_DOCKER {
 
 process UPDATE_PANGO_CONDA {
 	
+	// This process creates a conda environment, where it updates pangolin
+	
 	when:
-	workflow.profile == 'conda'
+	workflow.profile == 'conda' && params.update_pango == true
 	
 	output:
 	env version, emit: cue
@@ -115,6 +121,11 @@ process UPDATE_PANGO_CONDA {
 }
 
 process IDENTIFY_LINEAGES {
+	
+	// This process identifies lineages for all samples in every DHO Lab
+	// sequencing run. It pulls FASTAs directly from Google Drive to do so.
+	// NOTE: You must have Google Drive installed and mounted to access 
+	// the input files for this step.
 	
 	tag "${experiment_number}"
 	// publishDir "${parentdir}", pattern: '*.csv', mode: 'copy'
@@ -146,10 +157,9 @@ process IDENTIFY_LINEAGES {
 
 process CONCAT_CSVS {
 	
-	// This process double checks that a pango csv exists in the results
-	// directory. If it doesn't exist, it creates the file with the correct
-	// column names. Then, it appends each row from each lineage report
-	// produced during this run.
+	// This process takes the new pangolin lineage reports for all sequencing runs
+	// and combines them into a single, large, CSV file. Users can then search that
+	// CSV for lineages of interest 
 	
 	publishDir params.results, pattern: 'all_lineage_reports*.csv', mode: 'copy'
 	
@@ -175,6 +185,10 @@ process CONCAT_CSVS {
 
 process GET_DESIGNATION_DATES {
 	
+	// This process downloads a table of pangolin lineage designation dates
+	// from Cornelius Roemer's GitHub. These dates represent when each lineage was
+	// added to pangolin, after which point sequences could be classified as such 
+	
 	publishDir params.results, mode: 'copy'
 	
 	when:
@@ -190,6 +204,15 @@ process GET_DESIGNATION_DATES {
 }
 
 process FIND_LONG_INFECTIONS {
+	
+	// This process calls a script that identifies all samples that classify as "old"
+	// lineages, i.e. lineages that were first designated in pangolin long before a 
+	// sequence classified as it in a sequencing run. By default, this amount of time is
+	// eight months, but this is subject to change in the future. In such cases, where
+	// a lineage appears long after it arose and subsided, it is more likely that the 
+	// infection individual has sustained a prolonged infection since that lineage 
+	// was prevalent, and less likely that the old lineage re-appeared despite competition
+	// from newer, more fit lineages.
 	
 	tag "${experiment_number}"
 	// publishDir "${parentdir}", pattern: '*.csv', mode: 'copy'
@@ -212,6 +235,9 @@ process FIND_LONG_INFECTIONS {
 
 process CONCAT_LONG_INFECTIONS {
 	
+	// This step simply concatenates any putative prolonged infection samples into on
+	// table, which is then exported into the results directory.
+	
 	publishDir params.results, mode: 'copy'
 	
 	input:
@@ -228,6 +254,13 @@ process CONCAT_LONG_INFECTIONS {
 }
 
 process GET_BA_2_SEQ {
+	
+	// This process downloads a FASTA with consensus sequences for all pango lineages.
+	// As state on Cornelius Roemer's GitHub repo, "[t]hese sequences are not real sequences
+	// in databases but are algorithmically constructed consensus sequences that try to 
+	// represent the common ancestor sequence of that lineage." It then uses a short R
+	// script to pull out the BA.2 sequence, which will serve as a reference sequence
+	// downstream 
 	
 	publishDir params.results, mode: 'copy'
 	
@@ -250,37 +283,53 @@ process GET_BA_2_SEQ {
 
 process MAP_TO_BA_2 {
 	
-	tag "${experiment_number}"
+	// This process maps each consensus sequence from each run after the designation
+	// of BA.2 to the BA.2 consensus sequences. It then sorts the alignment, converts it
+	// to a BAM, and then constructs a pile-up that will be used as input for variant-
+	// calling downstream.
 	
-	when:
-	file(fasta).lastModified() >> Date.parseToStringDate("2021-12-07").format('yyyy-M-d')
+	cpus 1
 	
 	input:
 	each path(refseq)
-	tuple path(fasta), val(id)
+	path '??.fasta'
 	
 	output:
-	tuple path("*.mpileup"), val(sample)
+	tuple path("*.mpileup"), env(sample), env(cue)
 	
 	script:
-	experiment_number = "DHO_" + parentdir.toString().replaceAll('/gisaid','').split("DHO_")[1]
-	
 	"""
-	minimap2 -a ${refseq} ${fasta} \
-	  | samtools view -Sb - \
-	  | samtools sort - > tempfile
-	  samtools mpileup -aa -f ${refseq} --output ${sample}.mpileup tempfile
+	id=\$(basename *".fasta")
+	sample=\${id/.fasta/}
+	
+	if [ `date -r *.fasta +'%Y-%m-%d'` -gt `date -d '2021-12-07' +'%Y-%m-%d'` ]
+	then
+		minimap2 -a ${refseq} *.fasta \
+		  | samtools view -Sb - \
+		  | samtools sort - > tempfile
+		  samtools mpileup -aa -f ${refseq} --output \${sample}.mpileup tempfile
+		cue="proceed"
+	else
+		touch \${sample}.mpileup
+		cue="halt"
+	fi
 	"""
 	
 }
 
 process CALL_RBD_VARIANTS {
 	
-	tag "${experiment_number}"
+	// This process creates a simple table of mutations from BA.2 and annotates them
+	// with gene, codon, and amino acid information.
+	
+	when:
+	cue == 'proceed'
+	
+	cpus 1
 	
 	input:
 	each path(refseq)
-	tuple path(mpileup), val(sample)
+	tuple path(mpileup), val(sample), val(cue)
 	
 	output:
 	path "*.tsv"
@@ -295,6 +344,12 @@ process CALL_RBD_VARIANTS {
 }
 
 process CLASSIFY_LEVELS {
+	
+	// This process uses an R script to trim down all observed variants to only those in
+	// the Spike protein receptor binding domain, i.e. Spike amino acid residues 319–541.
+	// It then adds the count of RBD mutations——an RBD mutation "level", a la Cornelius 
+	// Roemer's method for tracking convergent evolution among SARS-CoV-2 lineages——to
+	// the new pango lineage classifications.
 	
 	input:
 	path variant_table_list
