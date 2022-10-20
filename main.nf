@@ -17,7 +17,7 @@ workflow {
 		
 	ch_post_ba2_seqs = Channel
 		.fromPath( "${params.data_dir}/DHO*/gisaid/*.fasta" )
-		// .filter { it.lastModified().after("2021-12-07") }
+		.filter { it.lastModified() > (new Date("07/12/2021").getTime()) }
 		.splitFasta( file: true )
 	
 	// Workflow steps for reclassifying pango lineages
@@ -292,27 +292,20 @@ process MAP_TO_BA_2 {
 	
 	input:
 	each path(refseq)
-	path '??.fasta'
+	path 'seq??.fasta'
 	
 	output:
-	tuple path("*.mpileup"), env(sample), env(cue)
+	tuple path("*.mpileup"), env(sample)
 	
 	script:
 	"""
-	id=\$(basename *".fasta")
+	id=\$(basename seq*.fasta)
 	sample=\${id/.fasta/}
 	
-	if [ `date -r *.fasta +'%Y-%m-%d'` -gt `date -d '2021-12-07' +'%Y-%m-%d'` ]
-	then
-		minimap2 -a ${refseq} *.fasta \
-		  | samtools view -Sb - \
-		  | samtools sort - > tempfile
-		  samtools mpileup -aa -f ${refseq} --output \${sample}.mpileup tempfile
-		cue="proceed"
-	else
-		touch \${sample}.mpileup
-		cue="halt"
-	fi
+	minimap2 -a ${refseq} seq*.fasta \
+		| samtools view -Sb - \
+		| samtools sort - > tempfile
+	samtools mpileup -aa -f ${refseq} --output \${sample}.mpileup tempfile
 	"""
 	
 }
@@ -322,14 +315,11 @@ process CALL_RBD_VARIANTS {
 	// This process creates a simple table of mutations from BA.2 and annotates them
 	// with gene, codon, and amino acid information.
 	
-	when:
-	cue == 'proceed'
-	
 	cpus 1
 	
 	input:
 	each path(refseq)
-	tuple path(mpileup), val(sample), val(cue)
+	tuple path(mpileup), val(sample)
 	
 	output:
 	path "*.tsv"
