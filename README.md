@@ -6,7 +6,7 @@ This pipeline was designed to update Pangolin lineages for an arbitrary number o
 
 1. Ensuring that it uses the most updated version of [Pangolin](https://github.com/cov-lineages/pangolin) to reclassify any number of FASTA-formatted consensus sequences. _NOTE:_ This pipeline does not assemble consensus sequences itself. These files must be produced beforehand.
 2. Identifying putative prolonged infections from the now-reclassified consensus sequences.
-3. Classifying "RBD Mutation Level," a metric for how evolutionarily advanced an infection is, for each sample sequenced since the emergence of lineage BA.2.
+3. Classifying "RBD Mutation Level," a metric for how evolutionarily advanced an infection is, for each sample sequenced since the emergence of lineage BA.2 (learn more about this lineage on [Open cov-Spectrum](https://open.cov-spectrum.org/explore/United%20States/AllSamples/AllTimes/variants?pangoLineage=BA.2&) and on [outbreak.info](https://outbreak.info/situation-reports?pango=BA.2)).
 
 ## Quick Start
 
