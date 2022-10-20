@@ -127,4 +127,20 @@ The workflow produces four outputs in the folder specified with `--results`:
 3. A table of putative long infections from among all detected consensus sequences.
    - These infections come from samples that classify as "old" lineages, i.e. lineages that were first designated in pangolin long before a sequence classified as it in a sequencing run. By default, this amount of time is eight months, but this is subject to change in the future. In such cases, where a lineage appears long after it arose and subsided, it is more likely that the infected individual has sustained a prolonged infection since that lineage was prevalent, and less likely that the old lineage re-appeared despite competition from newer, more fit lineages.
 
+Finally, the workflow also produces a visualization of itself called `lineager-analyzer-visualization.png`. This is analogous to a Directed Acyclic Graph (DAG).
+
 ### Pipeline Configuration
+
+This pipeline is configured with parameters in the file `nextflow.config`, many of which have already been mentioned above. In general, file paths and pipeline settings are specified there instead of having them hard-coded into the pipeline script `main.nf`.
+
+The configuration parameters include:
+
+- `data_dir`: Absolute path to the directory where subdirectories for each sequencing run are stored.
+- `results`: Where to place results
+- `refgff`: Path to SARS-CoV-2 annotations
+- `identify_long_infections`: whether to identify (true or false) potential long infections (Default: `true`)
+- `days_of_infection`: How many days past lineage designation to consider an infection prolonged
+- `classify_mutation_levels`: whether to classify into BA.2-based RBD mutation levels
+  - This process uses an R script to trim down all observed variants to only those in the Spike protein receptor binding domain, i.e. Spike amino acid residues 319–541. It then adds the count of RBD mutations——an RBD mutation "level", a la Cornelius Roemer's method for tracking convergent evolution among SARS-CoV-2 lineages——to the new pango lineage classifications.
+- `update_pango`: whether to update pango to the latest version (`true` or `false`; default is `true`)
+- `docker_reg`: Docker registry to use. In the past we have used 'dockerreg.chtc.wisc.edu/dabaker3'
