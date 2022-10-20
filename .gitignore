@@ -3,6 +3,7 @@ work/
 
 resources/update_pango_docker/
 results/report.html*
+results/lineage_designation_dates.csv
 .nextflow.log*
 .DS_Store
 config/envs/env-*

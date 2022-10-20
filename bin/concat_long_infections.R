@@ -1,6 +1,9 @@
 #!/usr/bin/env Rscript
+args = commandArgs(trailingOnly=TRUE)
 
 csv_list <- list.files(getwd(), "*.csv")
+
+days_of_infection <- as.numeric(args[1])
 
 for (i in 1:length(csv_list)){
 	
@@ -12,12 +15,11 @@ for (i in 1:length(csv_list)){
 		
 	} else if (i == 1 & grepl("No putative long infections", csv[1,1]) ){
 		
-		long_inf_table <- csv
 		long_inf_table <- long_inf_table[FALSE, ]
 		
 	}
 	
-	if (nrow(csv) > 0) {
+	if (nrow(csv) > 0 && !grepl("No putative long infections", csv[1,1])) {
 		
 		long_inf_table <- rbind(long_inf_table, csv)
 		remove(csv)
@@ -39,7 +41,7 @@ if (nrow(long_inf_table)==0){
 
 if (nrow(long_inf_table)>0){
 	
-	long_inf_table$days_to_define_prolonged_infections <- args[1]
+	long_inf_table$days_to_define_prolonged_infections <- days_of_infection
 	
 }
 

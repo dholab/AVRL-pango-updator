@@ -73,6 +73,7 @@ workflow {
 // --------------------------------------------------------------- //
 
 
+
 // PROCESS SPECIFICATION 
 // --------------------------------------------------------------- //
 
@@ -181,7 +182,7 @@ process GET_DESIGNATION_DATES {
 	
 	script:
 	"""
-	curl -fsSL https://raw.githubusercontent.com/corneliusroemer/pango-designation-dates/main/data/lineage_designation_date.csv > lineage_designation_date.csv
+	curl -fsSL https://raw.githubusercontent.com/corneliusroemer/pango-designation-dates/main/data/lineage_designation_date.csv > lineage_designation_dates.csv
 	"""
 }
 
@@ -218,7 +219,7 @@ process CONCAT_LONG_INFECTIONS {
 	
 	script:
 	"""
-	concat_long_infections.R ${params.days_of_infection}
+	concat_long_infections.R "${params.days_of_infection}"
 	"""
 	
 }
