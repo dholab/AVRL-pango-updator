@@ -9,16 +9,11 @@ nextflow.enable.dsl = 2
 workflow {
 	
 	
-	// input channels
-	ch_consensus_files = Channel
+	// input channel for consensus sequences 
+	ch_consensus_seqs = Channel
 		.fromPath( "${params.data_dir}/DHO*/gisaid/*.fasta" )
-		.map { fasta -> tuple( file(fasta), fasta.getParent(), fasta.getSimpleName() ) }
-		.filter { !it[2].contains(" copy") }
+		.filter { !it.contains(" ") }
 		
-	ch_post_ba2_seqs = Channel
-		.fromPath( "${params.data_dir}/DHO*/gisaid/*.fasta" )
-		.filter { it.lastModified() > (new Date("07/12/2021").getTime()) }
-		.splitFasta( file: true )
 	
 	// Workflow steps for reclassifying pango lineages
 	UPDATE_PANGO_DOCKER ( )
@@ -35,7 +30,8 @@ workflow {
 			.mix (
 				UPDATE_PANGO_CONDA.out.cue
 			),
-		ch_consensus_files
+		ch_consensus_seqs
+			.map { fasta -> tuple( file(fasta), fasta.getParent(), fasta.getSimpleName() ) }
 	)
 	
 	CONCAT_CSVS (
@@ -62,12 +58,19 @@ workflow {
 	
 	MAP_TO_BA_2 (
 		GET_BA_2_SEQ.out,
-		ch_post_ba2_seqs
+		ch_consensus_seqs
+			.filter { it.lastModified() > (new Date("07/12/2021").getTime()) }
+			.splitFasta( file: true )
+	)
+	
+	PROCESS_WITH_SAMTOOLS (
+		GET_BA_2_SEQ.out,
+		MAP_TO_BA_2.out
 	)
 	
 	CALL_RBD_VARIANTS (
 		GET_BA_2_SEQ.out,
-		MAP_TO_BA_2.out
+		PROCESS_WITH_SAMTOOLS.out
 	)
 	
 	CLASSIFY_LEVELS (
@@ -268,7 +271,7 @@ process GET_BA_2_SEQ {
 	params.classify_mutation_levels == true
 	
 	output:
-	path "*.fasta"
+	path "ba_2_ref.fasta"
 	
 	script:
 	"""
@@ -292,20 +295,39 @@ process MAP_TO_BA_2 {
 	
 	input:
 	each path(refseq)
-	path 'seq??.fasta'
+	path fasta
 	
 	output:
-	tuple path("*.mpileup"), env(sample)
+	tuple path("*.sam"), val(sample)
+	
+	script:
+	sample = fasta.getBaseName()
+	"""
+	minimap2 -t 1 -a ${refseq} -o ${sample}.sam ${fasta}
+	"""
+	
+}
+
+process PROCESS_WITH_SAMTOOLS {
+	
+	// This process takes the sequence alignment map (SAM) output from
+	// process MAP_TO_BA_2, converts it to binary format (BAM), sorts it (which
+	// is only a formality here, as there's just one consensus sequence being 
+	// processed), and then "converts" it to the mpileup format iVar requires.
+	
+	input:
+	each path(refseq)
+	tuple path(sam), val(sample)
+	
+	output:
+	tuple path("*.mpileup"), val(sample)
 	
 	script:
 	"""
-	id=\$(basename seq*.fasta)
-	sample=\${id/.fasta/}
-	
-	minimap2 -a ${refseq} seq*.fasta \
+	cat ${sam} \
 		| samtools view -Sb - \
 		| samtools sort - > tempfile
-	samtools mpileup -aa -f ${refseq} --output \${sample}.mpileup tempfile
+	samtools mpileup -aa -f ${refseq} --output ${sample}.mpileup tempfile
 	"""
 	
 }
@@ -314,8 +336,6 @@ process CALL_RBD_VARIANTS {
 	
 	// This process creates a simple table of mutations from BA.2 and annotates them
 	// with gene, codon, and amino acid information.
-	
-	cpus 1
 	
 	input:
 	each path(refseq)
