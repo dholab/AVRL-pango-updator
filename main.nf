@@ -22,7 +22,7 @@ workflow {
 	
 	if( params.update_pango == true ){
 		println "Pangolin updated to version:"
-		UPDATE_PANGO_DOCKER.out ? UPDATE_PANGO_CONDA.out.view() : UPDATE_PANGO_DOCKER.out.view()
+		UPDATE_PANGO_DOCKER.out ? UPDATE_PANGO_CONDA.out.cue.view() : UPDATE_PANGO_DOCKER.out.cue.view()
 	}
 	
 	IDENTIFY_LINEAGES (
