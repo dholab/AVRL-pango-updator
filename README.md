@@ -13,7 +13,7 @@ This pipeline was designed to update Pangolin lineages for an arbitrary number o
 If you already have miniconda3 and NextFlow installed on your system, simply invoke the pipeline with:
 
 ```
-nextflow run dholab/AVRL-pango-updator \
+nextflow run dholab/AVRL-pango-updator -latest \
 --update_pango true \
 --identify_long_infections true \
 --classify_mutation_levels true \
@@ -25,7 +25,7 @@ nextflow run dholab/AVRL-pango-updator \
 Alternatively, if you prefer to use Docker, invoke the pipeline with the Docker profile (_NOTE: This arm of the pipeline is still under development_), like so:
 
 ```
-nextflow run dholab/AVRL-pango-updator \
+nextflow run dholab/AVRL-pango-updator -latest \
 --update_pango true \
 --identify_long_infections true \
 --classify_mutation_levels true \

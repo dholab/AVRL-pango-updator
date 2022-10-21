@@ -107,9 +107,9 @@ process UPDATE_PANGO_DOCKER {
 	
 	script:
 	"""
-	// docker build -t pangolin_updated:${params.date} ${params.dockerfile_path}
-	// docker tag pangolin_updated:${params.date} ${params.docker_reg}/pangolin_updated:${params.date}
-	// docker push ${params.docker_reg}/pangolin_updated:${params.date}
+	# docker build -t pangolin_updated:${params.date} ${params.dockerfile_path}
+	# docker tag pangolin_updated:${params.date} ${params.docker_reg}/pangolin_updated:${params.date}
+	# docker push ${params.docker_reg}/pangolin_updated:${params.date}
 	pangolin --update --update-data
 	version=`pangolin --version | sed 's/pangolin//g' | xargs`
 	"""
