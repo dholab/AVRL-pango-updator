@@ -54,22 +54,30 @@ workflow {
 	)
 	
 	// Workflow steps for classifying RBD mutation levels relative to BA.2
-	GET_BA_2_SEQ ( )
+	GET_LINEAGE_SEQS ( )
+	
+	UNZIP_LINEAGE_SEQS ( 
+		GET_LINEAGE_SEQS.out
+	)
+	
+	ISOLATE_BA_2 ( 
+		UNZIP_LINEAGE_SEQS.out
+	)
 	
 	MAP_TO_BA_2 (
-		GET_BA_2_SEQ.out,
+		ISOLATE_BA_2.out,
 		ch_consensus_seqs
 			.filter { it.lastModified() > (new Date("07/12/2021").getTime()) }
 			.splitFasta( file: true )
 	)
 	
 	PROCESS_WITH_SAMTOOLS (
-		GET_BA_2_SEQ.out,
+		ISOLATE_BA_2.out,
 		MAP_TO_BA_2.out
 	)
 	
 	CALL_RBD_VARIANTS (
-		GET_BA_2_SEQ.out,
+		ISOLATE_BA_2.out,
 		PROCESS_WITH_SAMTOOLS.out
 	)
 	
@@ -92,16 +100,17 @@ process UPDATE_PANGO_DOCKER {
 	// This process builds a new docker image with the latest available pangolin version
 	
 	when:
-	workflow.profile == 'docker' && params.update_pango == true
+	(workflow.profile == 'standard' || workflow.profile == 'docker') && params.update_pango == true
 	
 	output:
 	env version, emit: cue
 	
 	script:
 	"""
-	docker build -t pangolin_updated:${params.date} ${params.dockerfile_path}
-	docker tag pangolin_updated:${params.date} ${params.docker_reg}/pangolin_updated:${params.date}
-	docker push ${params.docker_reg}/pangolin_updated:${params.date}
+	// docker build -t pangolin_updated:${params.date} ${params.dockerfile_path}
+	// docker tag pangolin_updated:${params.date} ${params.docker_reg}/pangolin_updated:${params.date}
+	// docker push ${params.docker_reg}/pangolin_updated:${params.date}
+	pangolin --update --update-data
 	version=`pangolin --version | sed 's/pangolin//g' | xargs`
 	"""
 }
@@ -256,7 +265,7 @@ process CONCAT_LONG_INFECTIONS {
 	
 }
 
-process GET_BA_2_SEQ {
+process GET_LINEAGE_SEQS {
 	
 	// This process downloads a FASTA with consensus sequences for all pango lineages.
 	// As state on Cornelius Roemer's GitHub repo, "[t]hese sequences are not real sequences
@@ -265,22 +274,52 @@ process GET_BA_2_SEQ {
 	// script to pull out the BA.2 sequence, which will serve as a reference sequence
 	// downstream 
 	
-	publishDir params.results, mode: 'copy'
+	cpus 1
 	
 	when:
 	params.classify_mutation_levels == true
+	
+	output:
+	path "pango_consensus_sequences.fasta.zstd"
+	
+	script:
+	"""
+	curl -fsSL 'https://github.com/corneliusroemer/pango-sequences/blob/main/data/pango_consensus_sequences.fasta.zstd?raw=true' > pango_consensus_sequences.fasta.zstd
+	"""
+}
+
+process UNZIP_LINEAGE_SEQS {
+	
+	cpus 1
+	
+	input:
+	path zstd
+	
+	output:
+	path "pango_consensus_sequences.fasta"
+	
+	script:
+	"""
+	mv `realpath ${zstd}` pango_consensus_sequences.fasta.zst
+	zstd -d pango_consensus_sequences.fasta.zst
+	"""
+}
+
+process ISOLATE_BA_2 {
+	
+	publishDir params.results, mode: 'copy'
+	
+	cpus 1
+	
+	input:
+	path fasta
 	
 	output:
 	path "ba_2_ref.fasta"
 	
 	script:
 	"""
-	
-	curl -fsSL https://github.com/corneliusroemer/pango-sequences/blob/main/data/pango_consensus_sequences.fasta.zstd?raw=true > pango_consensus_sequences.fasta.zstd
-	unzstd pango_consensus_sequences.fasta.zstd
-	
 	ba_2_isolator.R
-	
 	"""
 }
 
@@ -290,6 +329,9 @@ process MAP_TO_BA_2 {
 	// of BA.2 to the BA.2 consensus sequences. It then sorts the alignment, converts it
 	// to a BAM, and then constructs a pile-up that will be used as input for variant-
 	// calling downstream.
+	
+	errorStrategy 'retry'
+	maxRetries 4
 	
 	cpus 1
 	
