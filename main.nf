@@ -13,9 +13,16 @@ workflow {
 	ch_consensus_seqs = Channel
 		.fromPath( "${params.data_dir}/DHO*/gisaid/*.fasta" )
 		.filter { !it.contains(" ") }
-		
 	
-	// Workflow steps for reclassifying pango lineages
+	// ch_runs_of_interest = Channel
+	// 	.of( params.runs_of_interest )
+	// 	.splitCsv( header: false, sep = "," )
+	// 	.map { experiment -> tuple ( 
+	// 		file("${params.data_dir}/${experiment}/gisaid/*.fasta"), experiment
+	// 	) }
+	
+	
+	// Workflow steps for reclassifying all pango lineages
 	UPDATE_PANGO_DOCKER ( )
 	
 	UPDATE_PANGO_CONDA ( )
@@ -40,7 +47,7 @@ workflow {
 			.collect()
 	)
 	
-	// Workflow steps for identifying putative prolonged infections
+	// Workflow steps for identifying all putative prolonged infections
 	GET_DESIGNATION_DATES ( )
 	
 	FIND_LONG_INFECTIONS (
@@ -157,7 +164,7 @@ process IDENTIFY_LINEAGES {
 	experiment_number = "DHO_" + parentdir.toString().replaceAll('/gisaid','').split("DHO_")[1]
 	
 	"""
-	experiment_date=`date -r ${fasta} "+%Y-%m-%d"`
+	def experiment_date=`date -r ${fasta} "+%Y-%m-%d"`
 	
 	pangolin \
 	--threads ${task.cpus} \
@@ -343,7 +350,7 @@ process MAP_TO_BA_2 {
 	tuple path("*.sam"), val(sample)
 	
 	script:
-	sample = fasta.getBaseName()
+	def sample = fasta.getBaseName()
 	"""
 	minimap2 -t 1 -a ${refseq} -o ${sample}.sam ${fasta}
 	"""
@@ -357,6 +364,9 @@ process PROCESS_WITH_SAMTOOLS {
 	// is only a formality here, as there's just one consensus sequence being 
 	// processed), and then "converts" it to the mpileup format iVar requires.
 	
+	errorStrategy 'retry'
+	maxRetries 4
+	
 	input:
 	each path(refseq)
 	tuple path(sam), val(sample)
@@ -367,8 +377,8 @@ process PROCESS_WITH_SAMTOOLS {
 	script:
 	"""
 	cat ${sam} \
-		| samtools view -Sb - \
-		| samtools sort - > tempfile
+	| samtools view -Sb - \
+	| samtools sort - > tempfile
 	samtools mpileup -aa -f ${refseq} --output ${sample}.mpileup tempfile
 	"""
 	
