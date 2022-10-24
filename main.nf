@@ -164,7 +164,7 @@ process IDENTIFY_LINEAGES {
 	experiment_number = "DHO_" + parentdir.toString().replaceAll('/gisaid','').split("DHO_")[1]
 	
 	"""
-	def experiment_date=`date -r ${fasta} "+%Y-%m-%d"`
+	experiment_date=`date -r ${fasta} "+%Y-%m-%d"`
 	
 	pangolin \
 	--threads ${task.cpus} \
