@@ -161,7 +161,7 @@ process IDENTIFY_LINEAGES {
 	tuple path("*.csv"), val(run_name), val(parentdir), val(experiment_number), env(experiment_date)
 	
 	script:
-	experiment_number = "DHO_" + parentdir.toString().replaceAll('/gisaid','').split("DHO_")[1]
+	def experiment_number = "DHO_" + parentdir.toString().replaceAll('/gisaid','').split("DHO_")[1]
 	
 	"""
 	experiment_date=`date -r ${fasta} "+%Y-%m-%d"`
