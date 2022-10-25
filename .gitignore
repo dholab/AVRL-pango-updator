@@ -3,6 +3,7 @@ work/
 .nextflow/
 
 resources/update_pango_docker/
+resources/runs_of_interest.csv
 results/report.html*
 results/lineage_designation_dates.csv
 results/pango_consensus_sequences.fasta

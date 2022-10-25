@@ -22,15 +22,11 @@ workflow {
 	ch_consensus_seqs = Channel
 		.fromPath( "${params.data_dir}/DHO*/gisaid/*.fasta" )
 		.filter { !it.contains(" copy") }
-		.take ( 5 )
 	
 	ch_runs_of_interest = Channel
 		.fromPath( params.runs )
 		.splitCsv( header: false, sep: "," )
 		.flatten()
-		.map { experiment -> tuple ( 
-			file("${params.data_dir}/${experiment}/gisaid/*.fasta"), experiment
-		) }
 	
 	
 	// Workflow steps for reclassifying all pango lineages
@@ -38,12 +34,10 @@ workflow {
 	
 	UPDATE_PANGO_CONDA ( )
 	
-	if( params.update_pango == true ){
-		println "Pangolin updated to version:"
-		UPDATE_PANGO_DOCKER.out ? UPDATE_PANGO_CONDA.out.cue.view() : UPDATE_PANGO_DOCKER.out.cue.view()
-	}
+	println "Pangolin updated to version:"
+	UPDATE_PANGO_DOCKER.out.cue ? UPDATE_PANGO_CONDA.out.cue.view() : UPDATE_PANGO_DOCKER.out.cue.view()
 	
-	IDENTIFY_LINEAGES (
+	RECLASSIFY_ALL_LINEAGES (
 		UPDATE_PANGO_DOCKER.out.cue
 			.mix (
 				UPDATE_PANGO_CONDA.out.cue
@@ -52,9 +46,25 @@ workflow {
 			.map { fasta -> tuple( file(fasta), fasta.getParent(), fasta.getSimpleName() ) }
 	)
 	
+	FIND_TARGET_SEQS (
+		UPDATE_PANGO_DOCKER.out.cue
+		.mix (
+			UPDATE_PANGO_CONDA.out.cue
+		),
+		ch_runs_of_interest
+	)
+	
+	CLASSIFY_TARGET_SEQS (
+		FIND_TARGET_SEQS.out
+	)
+	
 	CONCAT_CSVS (
-		IDENTIFY_LINEAGES.out
+		RECLASSIFY_ALL_LINEAGES.out
 			.map { report, run_name, parentdir, experiment_number, experiment_date -> report }
+			.mix (
+				CLASSIFY_TARGET_SEQS.out
+					.map { report, run_name, parentdir, experiment_number, experiment_date -> report }
+			)
 			.collect()
 	)
 	
@@ -63,7 +73,8 @@ workflow {
 	
 	FIND_LONG_INFECTIONS (
 		GET_DESIGNATION_DATES.out,
-		IDENTIFY_LINEAGES.out
+		RECLASSIFY_ALL_LINEAGES.out
+			.mix ( CLASSIFY_TARGET_SEQS.out )
 	)
 	
 	CONCAT_LONG_INFECTIONS (
@@ -82,16 +93,25 @@ workflow {
 		UNZIP_LINEAGE_SEQS.out
 	)
 	
-	MAP_TO_BA_2 (
+	MAP_ALL_TO_BA_2 (
 		ISOLATE_BA_2.out,
 		ch_consensus_seqs
 			.filter { it.lastModified() > (new Date("07/12/2021").getTime()) }
 			.splitFasta( file: true )
 	)
 	
+	MAP_TARGETS_TO_BA_2 (
+		ISOLATE_BA_2.out,
+		FIND_TARGET_SEQS.out
+			.map { fasta, parentdir, experiment -> fasta }
+			.filter { file(it).lastModified() > (new Date("07/12/2021").getTime()) }
+			.splitFasta( file: true )
+	)
+	
 	PROCESS_WITH_SAMTOOLS (
 		ISOLATE_BA_2.out,
-		MAP_TO_BA_2.out
+		MAP_ALL_TO_BA_2.out
+			.mix ( MAP_TARGETS_TO_BA_2.out )
 	)
 	
 	CALL_RBD_VARIANTS (
@@ -150,7 +170,7 @@ process UPDATE_PANGO_CONDA {
 	"""
 }
 
-process IDENTIFY_LINEAGES {
+process RECLASSIFY_ALL_LINEAGES {
 	
 	// This process identifies lineages for all samples in every DHO Lab
 	// sequencing run. It pulls FASTAs directly from Google Drive to do so.
@@ -159,6 +179,9 @@ process IDENTIFY_LINEAGES {
 	
 	tag "${experiment_number}"
 	publishDir "${run_dir}", pattern: '*.csv', mode: 'copy'
+	
+	when:
+	params.update_all_lineages == true
 	
 	cpus 1
 	errorStrategy 'retry'
@@ -186,13 +209,63 @@ process IDENTIFY_LINEAGES {
 	
 }
 
+process FIND_TARGET_SEQS {
+	
+	tag "${experiment}"
+	
+	when:
+	!params.runs_of_interest.isEmpty()
+	
+	input:
+	each cue
+	val experiment
+	
+	output:
+	tuple env(fasta), val("${params.data_dir}/${experiment}/gisaid/"), val(experiment)
+	
+	script:
+	"""
+	fasta=`find "${params.data_dir}/${experiment}/gisaid/" -type f -name "*.fasta"`
+	"""
+	
+}
+
+process CLASSIFY_TARGET_SEQS {
+	
+	tag "${experiment_number}"
+	publishDir "${run_dir}", pattern: '*.csv', mode: 'copy'
+	
+	cpus 1
+	errorStrategy 'retry'
+	maxRetries 4
+	
+	input:
+	tuple path(fasta), val(parentdir), val(experiment_number)
+	
+	output:
+	tuple path("*.csv"), val(run_name), val(run_dir), val(experiment_number), env(experiment_date)
+	
+	script:
+	run_dir = parentdir.toString().replaceAll('/gisaid','')
+	
+	"""
+	experiment_date=`date -r ${fasta} "+%Y-%m-%d"`
+	
+	pangolin \
+	--threads ${task.cpus} \
+	--outfile ${experiment_number}_lineages_updated_${params.date}.csv \
+	"${fasta}"
+	"""
+	
+}
+
 process CONCAT_CSVS {
 	
 	// This process takes the new pangolin lineage reports for all sequencing runs
 	// and combines them into a single, large, CSV file. Users can then search that
 	// CSV for lineages of interest 
 	
-	// publishDir params.results, pattern: 'all_lineage_reports*.csv', mode: 'copy'
+	publishDir params.results, pattern: 'all_lineage_reports*.csv', mode: 'copy'
 	
 	input:
 	path report_list, stageAs: 'report??.csv'
@@ -342,12 +415,41 @@ process ISOLATE_BA_2 {
 	"""
 }
 
-process MAP_TO_BA_2 {
+process MAP_ALL_TO_BA_2 {
 	
 	// This process maps each consensus sequence from each run after the designation
 	// of BA.2 to the BA.2 consensus sequences. It then sorts the alignment, converts it
 	// to a BAM, and then constructs a pile-up that will be used as input for variant-
 	// calling downstream.
+	
+	when:
+	params.runs_of_interest.isEmpty()
+	
+	errorStrategy 'retry'
+	maxRetries 4
+	
+	cpus 1
+	
+	input:
+	each path(refseq)
+	path fasta
+	
+	output:
+	tuple path("*.sam"), val(sample), env(strain)
+	
+	script:
+	sample = fasta.getBaseName() 
+	"""
+	strain=`head -n 1 ${fasta}`
+	minimap2 -t 1 -a ${refseq} -o ${sample}.sam ${fasta}
+	"""
+	
+}
+
+process MAP_TARGETS_TO_BA_2 {
+	
+	when:
+	params.update_all_lineages == true
 	
 	errorStrategy 'retry'
 	maxRetries 4
@@ -399,8 +501,7 @@ process PROCESS_WITH_SAMTOOLS {
 
 process CALL_RBD_VARIANTS {
 	
-	// This process creates a simple table of mutations from BA.2 and annotates them
-	// with gene, codon, and amino acid information.
+	// This process creates a simple table of mutations from BA.2
 	
 	input:
 	each path(refseq)
@@ -437,7 +538,8 @@ process CLASSIFY_LEVELS {
 	
 	script:
 	"""
-	rbd_lineage_classifer.R
+	rbd_lineage_classifer.R && \
+	rm -f ${params.results}/all_lineage_reports*.csv
 	"""
 }
 // --------------------------------------------------------------- //
