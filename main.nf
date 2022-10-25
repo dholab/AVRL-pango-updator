@@ -12,7 +12,8 @@ workflow {
 	// input channel for consensus sequences 
 	ch_consensus_seqs = Channel
 		.fromPath( "${params.data_dir}/DHO*/gisaid/*.fasta" )
-		.filter { !it.contains(" ") }
+		.filter { !it.contains(" copy") }
+		.take ( 5 )
 	
 	// ch_runs_of_interest = Channel
 	// 	.of( params.runs_of_interest )
@@ -161,7 +162,7 @@ process IDENTIFY_LINEAGES {
 	tuple path("*.csv"), val(run_name), val(parentdir), val(experiment_number), env(experiment_date)
 	
 	script:
-	def experiment_number = "DHO_" + parentdir.toString().replaceAll('/gisaid','').split("DHO_")[1]
+	experiment_number = 'DHO_' + parentdir.toString().replaceAll('/gisaid','').split("DHO_")[1]
 	
 	"""
 	experiment_date=`date -r ${fasta} "+%Y-%m-%d"`
@@ -307,7 +308,7 @@ process UNZIP_LINEAGE_SEQS {
 	
 	script:
 	"""
-	mv `realpath ${zstd}` pango_consensus_sequences.fasta.zst
+	cp `realpath ${zstd}` pango_consensus_sequences.fasta.zst
 	zstd -d pango_consensus_sequences.fasta.zst
 	"""
 }
@@ -350,7 +351,7 @@ process MAP_TO_BA_2 {
 	tuple path("*.sam"), val(sample)
 	
 	script:
-	def sample = fasta.getBaseName()
+	sample = fasta.getBaseName()
 	"""
 	minimap2 -t 1 -a ${refseq} -o ${sample}.sam ${fasta}
 	"""
