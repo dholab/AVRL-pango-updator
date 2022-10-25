@@ -78,8 +78,7 @@ workflow {
 	)
 	
 	CONCAT_LONG_INFECTIONS (
-		FIND_LONG_INFECTIONS.out
-			.collect()
+		FIND_LONG_INFECTIONS.out.collect()
 	)
 	
 	// Workflow steps for classifying RBD mutation levels relative to BA.2
@@ -138,19 +137,24 @@ process UPDATE_PANGO_DOCKER {
 	// This process builds a new docker image with the latest available pangolin version
 	
 	when:
-	workflow.profile == 'standard' || workflow.profile == 'docker'
+	workflow.profile == 'standard' || workflow.profile == 'docker' || workflow.profile == 'singularity'
 	
 	output:
 	env version, emit: cue
 	
 	script:
-	"""
-	# docker build -t pangolin_updated:${params.date} ${params.dockerfile_path}
-	# docker tag pangolin_updated:${params.date} ${params.docker_reg}/pangolin_updated:${params.date}
-	# docker push ${params.docker_reg}/pangolin_updated:${params.date}
-	pangolin --update --update-data
-	version=`pangolin --version | sed 's/pangolin//g' | xargs`
-	"""
+	if (params.update_pango == true)
+		"""
+		# docker build -t pangolin_updated:${params.date} ${params.dockerfile_path}
+		# docker tag pangolin_updated:${params.date} ${params.docker_reg}/pangolin_updated:${params.date}
+		# docker push ${params.docker_reg}/pangolin_updated:${params.date}
+		pangolin --update --update-data
+		version=`pangolin --version | sed 's/pangolin//g' | xargs`
+		"""
+	else
+		"""
+		version=`pangolin --version | sed 's/pangolin//g' | xargs`
+		"""
 }
 
 process UPDATE_PANGO_CONDA {
@@ -164,10 +168,15 @@ process UPDATE_PANGO_CONDA {
 	env version, emit: cue
 	
 	script:
-	"""
-	pangolin --update --update-data
-	version=`pangolin --version | sed 's/pangolin//g' | xargs`
-	"""
+	if (params.update_pango == true)
+		"""
+		pangolin --update --update-data
+		version=`pangolin --version | sed 's/pangolin//g' | xargs`
+		"""
+	else
+		"""
+		version=`pangolin --version | sed 's/pangolin//g' | xargs`
+		"""
 }
 
 process RECLASSIFY_ALL_LINEAGES {
@@ -180,9 +189,6 @@ process RECLASSIFY_ALL_LINEAGES {
 	tag "${experiment_number}"
 	publishDir "${run_dir}", pattern: '*.csv', mode: 'copy'
 	
-	when:
-	params.update_all_lineages == true
-	
 	cpus 1
 	errorStrategy 'retry'
 	maxRetries 4
@@ -193,6 +199,9 @@ process RECLASSIFY_ALL_LINEAGES {
 	
 	output:
 	tuple path("*.csv"), val(run_name), val(run_dir), val(experiment_number), env(experiment_date)
+	
+	when:
+	params.runs_of_interest.isEmpty()
 	
 	script:
 	run_dir = parentdir.toString().replaceAll('/gisaid','')
@@ -212,9 +221,6 @@ process RECLASSIFY_ALL_LINEAGES {
 process FIND_TARGET_SEQS {
 	
 	tag "${experiment}"
-	
-	when:
-	!params.runs_of_interest.isEmpty()
 	
 	input:
 	each cue
@@ -243,7 +249,7 @@ process CLASSIFY_TARGET_SEQS {
 	tuple path(fasta), val(parentdir), val(experiment_number)
 	
 	output:
-	tuple path("*.csv"), val(run_name), val(run_dir), val(experiment_number), env(experiment_date)
+	tuple path("*.csv"), val(experiment_number), val(run_dir), val(experiment_number), env(experiment_date)
 	
 	script:
 	run_dir = parentdir.toString().replaceAll('/gisaid','')
@@ -319,10 +325,7 @@ process FIND_LONG_INFECTIONS {
 	// from newer, more fit lineages.
 	
 	tag "${experiment_number}"
-	publishDir "${run_dir}", pattern: '*.csv', mode: 'copy'
-	
-	when:
-	params.identify_long_infections == true
+	// publishDir "${run_dir}", pattern: '*.csv', mode: 'copy'
 	
 	input:
 	each path(lineage_dates)
@@ -330,6 +333,9 @@ process FIND_LONG_INFECTIONS {
 	
 	output:
 	path "*putative_long_infections*.csv"
+	
+	when:
+	params.identify_long_infections == true
 	
 	script:
 	"""
@@ -368,11 +374,11 @@ process GET_LINEAGE_SEQS {
 	
 	cpus 1
 	
-	when:
-	params.classify_mutation_levels == true
-	
 	output:
 	path "pango_consensus_sequences.fasta.zstd"
+	
+	when:
+	params.classify_mutation_levels == true
 	
 	script:
 	"""
@@ -422,9 +428,6 @@ process MAP_ALL_TO_BA_2 {
 	// to a BAM, and then constructs a pile-up that will be used as input for variant-
 	// calling downstream.
 	
-	when:
-	params.runs_of_interest.isEmpty()
-	
 	errorStrategy 'retry'
 	maxRetries 4
 	
@@ -437,6 +440,9 @@ process MAP_ALL_TO_BA_2 {
 	output:
 	tuple path("*.sam"), val(sample), env(strain)
 	
+	when:
+	params.runs_of_interest.isEmpty()
+	
 	script:
 	sample = fasta.getBaseName() 
 	"""
@@ -447,9 +453,6 @@ process MAP_ALL_TO_BA_2 {
 }
 
 process MAP_TARGETS_TO_BA_2 {
-	
-	when:
-	params.update_all_lineages == true
 	
 	errorStrategy 'retry'
 	maxRetries 4
