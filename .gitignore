@@ -1,3 +1,4 @@
+results/variant_tables/
 work/
 .nextflow/
 
@@ -9,3 +10,4 @@ results/pango_consensus_sequences.fasta
 .DS_Store
 config/envs/env-*
 config/envs/.env-*
+._*

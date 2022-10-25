@@ -4,6 +4,15 @@ nextflow.enable.dsl = 2
 
 
 
+// DERIVATIVE PARAMETER SPECIFICATION
+// --------------------------------------------------------------- //
+// Derivative parameters, mostly for making specific results folders
+params.runs = file('resources/runs_of_interest.csv')
+params.runs.text = params.runs_of_interest
+// --------------------------------------------------------------- //
+
+
+
 // WORKFLOW SPECIFICATION
 // --------------------------------------------------------------- //
 workflow {
@@ -15,12 +24,13 @@ workflow {
 		.filter { !it.contains(" copy") }
 		.take ( 5 )
 	
-	// ch_runs_of_interest = Channel
-	// 	.of( params.runs_of_interest )
-	// 	.splitCsv( header: false, sep = "," )
-	// 	.map { experiment -> tuple ( 
-	// 		file("${params.data_dir}/${experiment}/gisaid/*.fasta"), experiment
-	// 	) }
+	ch_runs_of_interest = Channel
+		.fromPath( params.runs )
+		.splitCsv( header: false, sep: "," )
+		.flatten()
+		.map { experiment -> tuple ( 
+			file("${params.data_dir}/${experiment}/gisaid/*.fasta"), experiment
+		) }
 	
 	
 	// Workflow steps for reclassifying all pango lineages
@@ -108,7 +118,7 @@ process UPDATE_PANGO_DOCKER {
 	// This process builds a new docker image with the latest available pangolin version
 	
 	when:
-	(workflow.profile == 'standard' || workflow.profile == 'docker') && params.update_pango == true
+	workflow.profile == 'standard' || workflow.profile == 'docker'
 	
 	output:
 	env version, emit: cue
@@ -128,7 +138,7 @@ process UPDATE_PANGO_CONDA {
 	// This process creates a conda environment, where it updates pangolin
 	
 	when:
-	workflow.profile == 'conda' && params.update_pango == true
+	workflow.profile == 'conda'
 	
 	output:
 	env version, emit: cue
@@ -148,7 +158,7 @@ process IDENTIFY_LINEAGES {
 	// the input files for this step.
 	
 	tag "${experiment_number}"
-	// publishDir "${parentdir}", pattern: '*.csv', mode: 'copy'
+	publishDir "${run_dir}", pattern: '*.csv', mode: 'copy'
 	
 	cpus 1
 	errorStrategy 'retry'
@@ -159,10 +169,11 @@ process IDENTIFY_LINEAGES {
 	tuple path(fasta), val(parentdir), val(run_name)
 	
 	output:
-	tuple path("*.csv"), val(run_name), val(parentdir), val(experiment_number), env(experiment_date)
+	tuple path("*.csv"), val(run_name), val(run_dir), val(experiment_number), env(experiment_date)
 	
 	script:
-	experiment_number = 'DHO_' + parentdir.toString().replaceAll('/gisaid','').split("DHO_")[1]
+	run_dir = parentdir.toString().replaceAll('/gisaid','')
+	experiment_number = 'DHO_' + run_dir.split("DHO_")[1]
 	
 	"""
 	experiment_date=`date -r ${fasta} "+%Y-%m-%d"`
@@ -181,7 +192,7 @@ process CONCAT_CSVS {
 	// and combines them into a single, large, CSV file. Users can then search that
 	// CSV for lineages of interest 
 	
-	publishDir params.results, pattern: 'all_lineage_reports*.csv', mode: 'copy'
+	// publishDir params.results, pattern: 'all_lineage_reports*.csv', mode: 'copy'
 	
 	input:
 	path report_list, stageAs: 'report??.csv'
@@ -235,14 +246,14 @@ process FIND_LONG_INFECTIONS {
 	// from newer, more fit lineages.
 	
 	tag "${experiment_number}"
-	// publishDir "${parentdir}", pattern: '*.csv', mode: 'copy'
+	publishDir "${run_dir}", pattern: '*.csv', mode: 'copy'
 	
 	when:
 	params.identify_long_infections == true
 	
 	input:
 	each path(lineage_dates)
-	tuple path(lineage_csv), val(run_name), val(parentdir), val(experiment_number), val(experiment_date)
+	tuple path(lineage_csv), val(run_name), val(run_dir), val(experiment_number), val(experiment_date)
 	
 	output:
 	path "*putative_long_infections*.csv"
@@ -348,11 +359,12 @@ process MAP_TO_BA_2 {
 	path fasta
 	
 	output:
-	tuple path("*.sam"), val(sample)
+	tuple path("*.sam"), val(sample), env(strain)
 	
 	script:
-	sample = fasta.getBaseName()
+	sample = fasta.getBaseName() 
 	"""
+	strain=`head -n 1 ${fasta}`
 	minimap2 -t 1 -a ${refseq} -o ${sample}.sam ${fasta}
 	"""
 	
@@ -370,17 +382,17 @@ process PROCESS_WITH_SAMTOOLS {
 	
 	input:
 	each path(refseq)
-	tuple path(sam), val(sample)
+	tuple path(sam), val(sample), val(strain)
 	
 	output:
-	tuple path("*.mpileup"), val(sample)
+	tuple path("*.mpileup"), val(strain_name)
 	
 	script:
+	strain_name = strain.replaceAll("/","_").replaceAll(">", "")
 	"""
-	cat ${sam} \
-	| samtools view -Sb - \
-	| samtools sort - > tempfile
-	samtools mpileup -aa -f ${refseq} --output ${sample}.mpileup tempfile
+	samtools view -b ${sam} > ${sample}.bam
+	samtools sort ${sample}.bam > ${sample}_sorted.bam
+	samtools mpileup -aa -B -f ${refseq} --output ${sample}.mpileup ${sample}_sorted.bam
 	"""
 	
 }
@@ -392,16 +404,16 @@ process CALL_RBD_VARIANTS {
 	
 	input:
 	each path(refseq)
-	tuple path(mpileup), val(sample)
+	tuple path(mpileup), val(strain_name)
 	
 	output:
 	path "*.tsv"
 	
 	script:
 	"""
-	cat ${mpileup} \
-	  | ivar variants -p ${sample}_consensus_variant_table \
-	  -t 0 -m 1 -q 1 -r ${refseq} -g ${params.refgff}
+	cat ${mpileup} | ivar variants \
+	-p ${strain_name}_consensus_variant_table \
+	-t 0 -m 1 -q 1 -r ${refseq}
 	"""
 	
 }
@@ -414,11 +426,14 @@ process CLASSIFY_LEVELS {
 	// Roemer's method for tracking convergent evolution among SARS-CoV-2 lineages——to
 	// the new pango lineage classifications.
 	
+	publishDir params.results, mode: 'copy'
+	
 	input:
 	path variant_table_list
 	path lineages
 	
 	output:
+	path "rbd_classified_lineage_reports*.csv"
 	
 	script:
 	"""
