@@ -35,7 +35,8 @@ workflow {
 	UPDATE_PANGO_CONDA ( )
 	
 	println "Pangolin updated to version:"
-	UPDATE_PANGO_DOCKER.out.cue ? UPDATE_PANGO_CONDA.out.cue.view() : UPDATE_PANGO_DOCKER.out.cue.view()
+	UPDATE_PANGO_CONDA.out.cue.view()
+	UPDATE_PANGO_DOCKER.out.cue.view()
 	
 	RECLASSIFY_ALL_LINEAGES (
 		UPDATE_PANGO_DOCKER.out.cue
@@ -102,7 +103,7 @@ workflow {
 	MAP_TARGETS_TO_BA_2 (
 		ISOLATE_BA_2.out,
 		FIND_TARGET_SEQS.out
-			.map { fasta, parentdir, experiment -> fasta }
+			.map { fasta, parentdir, experiment -> file(fasta) }
 			.filter { file(it).lastModified() > (new Date("07/12/2021").getTime()) }
 			.splitFasta( file: true )
 	)
