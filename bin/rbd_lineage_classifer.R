@@ -39,7 +39,7 @@ for (i in 1:length(variant_tables)){
 # constructing new filename
 new_filename <- str_replace(list.files(path = ".", pattern = "all_lineage_reports*")[1], 
                             "all_",
-                            "rbd_classified")
+                            "rbd_classified_")
 
 # Exporting the final lineage report
 write.csv(lineage_reports, new_filename, quote = F, row.names = F)

@@ -484,7 +484,7 @@ process PROCESS_WITH_SAMTOOLS {
 	// processed), and then "converts" it to the mpileup format iVar requires.
 	
 	errorStrategy 'retry'
-	maxRetries 4
+	maxRetries 9
 	
 	input:
 	each path(refseq)
