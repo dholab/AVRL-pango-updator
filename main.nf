@@ -9,6 +9,9 @@ nextflow.enable.dsl = 2
 // Derivative parameters, mostly for making specific results folders
 params.runs = file('resources/runs_of_interest.csv')
 params.runs.text = params.runs_of_interest
+if( params.distribute_results == false ){
+	params.lineage_reports = params.results + "/" + params.date + "_pangolin_reports"
+}
 // --------------------------------------------------------------- //
 
 
@@ -205,7 +208,11 @@ process RECLASSIFY_ALL_LINEAGES {
 	params.runs_of_interest.isEmpty()
 	
 	script:
-	run_dir = parentdir.toString().replaceAll('/gisaid','')
+	if( params.distribute_results == true ){
+		run_dir = parentdir.toString().replaceAll('/gisaid','')
+	} else {
+		run_dir = params.lineage_reports
+	}
 	experiment_number = 'DHO_' + run_dir.split("DHO_")[1]
 	
 	"""
@@ -339,8 +346,10 @@ process FIND_LONG_INFECTIONS {
 	params.identify_long_infections == true
 	
 	script:
+	run = run_name.toString().replaceAll(" copy", "")
+	
 	"""
-	long_infection_finder.R ${run_name} ${experiment_number} ${experiment_date} ${lineage_csv} ${lineage_dates} ${params.days_of_infection}
+	long_infection_finder.R ${run} ${experiment_number} ${experiment_date} ${lineage_csv} ${lineage_dates} ${params.days_of_infection}
 	"""
 }
 
@@ -459,6 +468,7 @@ process MAP_TARGETS_TO_BA_2 {
 	maxRetries 4
 	
 	cpus 1
+	time '5minutes'
 	
 	input:
 	each path(refseq)
