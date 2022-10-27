@@ -111,16 +111,18 @@ workflow {
 			.splitFasta( file: true )
 	)
 	
-	PROCESS_WITH_SAMTOOLS (
+	CALL_RBD_VARIANTS (
 		ISOLATE_BA_2.out,
 		MAP_ALL_TO_BA_2.out
 			.mix ( MAP_TARGETS_TO_BA_2.out )
 	)
 	
-	CALL_RBD_VARIANTS (
-		ISOLATE_BA_2.out,
-		PROCESS_WITH_SAMTOOLS.out
-	)
+	// BUILD_SNPEFF_DATABASE ( )
+	// 
+	// ANNOTATE_VCFS (
+	// 	BUILD_SNPEFF_DATABASE.out,
+	// 	CALL_RBD_VARIANTS.out
+	// )
 	
 	CLASSIFY_LEVELS (
 		CALL_RBD_VARIANTS.out.collect(),
@@ -259,7 +261,10 @@ process CLASSIFY_TARGET_SEQS {
 	tuple path("*.csv"), val(experiment_number), val(run_dir), val(experiment_number), env(experiment_date)
 	
 	script:
-	run_dir = parentdir.toString().replaceAll('/gisaid','')
+	if( params.distribute_results == true )
+		run_dir = parentdir.toString().replaceAll('/gisaid','')
+	else 
+		run_dir = params.lineage_reports
 	
 	"""
 	experiment_date=`date -r ${fasta} "+%Y-%m-%d"`
@@ -461,7 +466,7 @@ process MAP_ALL_TO_BA_2 {
 	sample = fasta.getBaseName() 
 	"""
 	strain=`head -n 1 ${fasta}`
-	minimap2 -t 1 -a ${refseq} -o ${sample}.sam ${fasta}
+	minimap2 -t 1 -ax asm5 ${refseq} ${fasta} > ${sample}.sam
 	"""
 	
 }
@@ -485,34 +490,7 @@ process MAP_TARGETS_TO_BA_2 {
 	sample = fasta.getBaseName() 
 	"""
 	strain=`head -n 1 ${fasta}`
-	minimap2 -t 1 -a ${refseq} -o ${sample}.sam ${fasta}
-	"""
-	
-}
-
-process PROCESS_WITH_SAMTOOLS {
-	
-	// This process takes the sequence alignment map (SAM) output from
-	// process MAP_TO_BA_2, converts it to binary format (BAM), sorts it (which
-	// is only a formality here, as there's just one consensus sequence being 
-	// processed), and then "converts" it to the mpileup format iVar requires.
-	
-	errorStrategy 'ignore'
-	// maxRetries 9
-	
-	input:
-	each path(refseq)
-	tuple path(sam), val(sample), val(strain)
-	
-	output:
-	tuple path("*.mpileup"), val(strain_name)
-	
-	script:
-	strain_name = strain.replaceAll("/","_").replaceAll(">", "")
-	"""
-	samtools view -b ${sam} > ${sample}.bam
-	samtools sort ${sample}.bam > ${sample}_sorted.bam
-	samtools mpileup -aa -B -f ${refseq} --output ${sample}.mpileup ${sample}_sorted.bam
+	minimap2 -t 1 -ax asm5 ${refseq} ${fasta} > ${sample}.sam
 	"""
 	
 }
@@ -521,16 +499,52 @@ process CALL_RBD_VARIANTS {
 	
 	// This process creates a simple table of mutations from BA.2
 	
+	memory '1 GB'
+	
 	input:
 	each path(refseq)
-	tuple path(mpileup), val(strain_name)
+	tuple path(sam), val(sample), val(strain)
 	
 	output:
-	path "*.tsv"
+	path "*.vcf"
+	
+	script:
+	strain_name = strain.replaceAll("/","_").replaceAll(">", "")
+	"""
+	callvariants.sh -Xmx1g \
+	in=${sam} out=${strain_name}.vcf \
+	ref=${refseq} samstreamer=t clearfilters \
+	ploidy=1 mincov=0 callsub=t calldel=t callins=t overwrite=t # && \
+	# gunzip ${strain_name}.vcf.gz
+	"""
+	
+}
+
+process BUILD_SNPEFF_DATABASE {
+	
+	output:
+	path "*.config"
 	
 	script:
 	"""
-	cat `realpath ${mpileup}` | ivar variants -p ${strain_name}_consensus_variant_table -t 0 -m 1 -q 1 -r `realpath ${refseq}` -g ${params.refgff}
+	snpEff build -gff3 ${params.refgff}
+	"""
+}
+
+process ANNOTATE_VCFS {
+	
+	tag "${strain}"
+	
+	input:
+	each path(config)
+	tuple path(vcf), val(strain_name)
+	
+	output:
+	path "*annotated.vcf"
+	
+	script:
+	"""
+	
 	"""
 	
 }

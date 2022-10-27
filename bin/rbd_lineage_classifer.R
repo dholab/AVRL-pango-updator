@@ -8,24 +8,25 @@ lineage_reports <- read.csv(list.files(path = ".", pattern = "all_lineage_report
 lineage_reports$RBD_level <- NA
 
 # assemble a list of variant tables
-variant_tables <- list.files(path = ".", pattern = "*consensus_variant_table.tsv")
+variant_tables <- list.files(path = ".", pattern = "*vcf")
 
 # looping through each variant table and counting RBD mutations
 for (i in 1:length(variant_tables)){
   
   strain_name <- basename(variant_tables[i]) %>%
-    str_remove("_consensus_variant_table.tsv") %>%
+    str_remove(".vcf") %>%
     str_replace_all("_", "/")
   
   row <- as.numeric(rownames(lineage_reports[lineage_reports$taxon==strain_name,]))
   
-  mutations <- read.delim(variant_tables[i])
-  mutations <- mutations[mutations$REF!="-",]
+  mutations <- read.delim(variant_tables[i], skip = 55)
+  # mutations <- mutations[mutations$REF!="-",]
   mutations <- mutations[mutations$ALT!="N",]
   mutations <- mutations[!grepl("-", mutations$ALT),]
   
-  rbd <- mutations[mutations$POS > 957 &
-                     mutations$POS < 1623,]
+  rbd <- mutations[mutations$POS > (21554+957) &
+                     mutations$POS < (21554+1623),]
+  
   if (nrow(rbd)>0){
     mutations <- nrow(rbd)
   } else {
