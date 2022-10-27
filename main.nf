@@ -208,11 +208,10 @@ process RECLASSIFY_ALL_LINEAGES {
 	params.runs_of_interest.isEmpty()
 	
 	script:
-	if( params.distribute_results == true ){
+	if( params.distribute_results == true )
 		run_dir = parentdir.toString().replaceAll('/gisaid','')
-	} else {
+	else 
 		run_dir = params.lineage_reports
-	}
 	experiment_number = 'DHO_' + run_dir.split("DHO_")[1]
 	
 	"""
@@ -307,7 +306,7 @@ process GET_DESIGNATION_DATES {
 	// from Cornelius Roemer's GitHub. These dates represent when each lineage was
 	// added to pangolin, after which point sequences could be classified as such 
 	
-	publishDir params.results, mode: 'copy'
+	publishDir params.resources, mode: 'copy'
 	
 	when:
 	params.identify_long_infections == true
@@ -415,7 +414,7 @@ process UNZIP_LINEAGE_SEQS {
 
 process ISOLATE_BA_2 {
 	
-	publishDir params.results, mode: 'copy'
+	publishDir params.resources, mode: 'copy'
 	
 	cpus 1
 	
@@ -428,6 +427,11 @@ process ISOLATE_BA_2 {
 	script:
 	"""
 	ba_2_isolator.R
+	
+	head -n 1 ba_2_ref.fasta > ba_2_ref.tmp
+	tail -n +2 ba_2_ref.fasta | fold -w 80 >> ba_2_ref.tmp
+	rm -f ba_2_ref.fasta
+	mv ba_2_ref.tmp ba_2_ref.fasta
 	"""
 }
 
@@ -493,8 +497,8 @@ process PROCESS_WITH_SAMTOOLS {
 	// is only a formality here, as there's just one consensus sequence being 
 	// processed), and then "converts" it to the mpileup format iVar requires.
 	
-	errorStrategy 'retry'
-	maxRetries 9
+	errorStrategy 'ignore'
+	// maxRetries 9
 	
 	input:
 	each path(refseq)
@@ -526,9 +530,7 @@ process CALL_RBD_VARIANTS {
 	
 	script:
 	"""
-	cat ${mpileup} | ivar variants \
-	-p ${strain_name}_consensus_variant_table \
-	-t 0 -m 1 -q 1 -r ${refseq} -g ${params.refgff}
+	cat `realpath ${mpileup}` | ivar variants -p ${strain_name}_consensus_variant_table -t 0 -m 1 -q 1 -r `realpath ${refseq}` -g ${params.refgff}
 	"""
 	
 }
