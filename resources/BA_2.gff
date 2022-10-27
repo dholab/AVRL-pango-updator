@@ -1,0 +1,25 @@
+##gff-version 3
+##source-version geneious 2022.2.2
+##sequence-region	BA.2	1	29850
+BA.2	Geneious	five_prime_UTR	1	265	.	+	.	
+BA.2	Geneious	CDS	266	13459	.	+	0	Name=orf1ab CDS;ID=pakVz55g1obk9GlAIHelPcP2kMQ.1666889600924.1
+BA.2	Geneious	CDS	13459	21546	.	+	0	Name=orf1ab CDS;ID=pakVz55g1obk9GlAIHelPcP2kMQ.1666889600924.1
+BA.2	Geneious	gene	266	21546	.	+	.	Name=orf1ab gene
+BA.2	Geneious	CDS	21554	25366	.	+	0	Name=S CDS
+BA.2	Geneious	gene	21554	25366	.	+	.	Name=S gene
+BA.2	Geneious	CDS	25375	26202	.	+	0	Name=ORF3a CDS
+BA.2	Geneious	gene	25375	26202	.	+	.	Name=ORF3a gene
+BA.2	Geneious	CDS	26227	26454	.	+	0	Name=E CDS
+BA.2	Geneious	gene	26227	26454	.	+	.	Name=E gene
+BA.2	Geneious	CDS	26505	27173	.	+	0	Name=M CDS
+BA.2	Geneious	gene	26505	27173	.	+	.	Name=M gene
+BA.2	Geneious	CDS	27184	27369	.	+	0	Name=ORF6 CDS
+BA.2	Geneious	gene	27184	27369	.	+	.	Name=ORF6 gene
+BA.2	Geneious	CDS	27376	27741	.	+	0	Name=ORF7a CDS
+BA.2	Geneious	gene	27376	27741	.	+	.	Name=ORF7a gene
+BA.2	Geneious	CDS	27876	28241	.	+	0	Name=ORF8 CDS
+BA.2	Geneious	gene	27876	28241	.	+	.	Name=ORF8 gene
+BA.2	Geneious	CDS	28256	29506	.	+	0	Name=N CDS
+BA.2	Geneious	gene	28256	29506	.	+	.	Name=N gene
+BA.2	Geneious	CDS	29531	29647	.	+	0	Name=ORF10 CDS
+BA.2	Geneious	gene	29531	29647	.	+	.	Name=ORF10 gene

@@ -528,7 +528,7 @@ process CALL_RBD_VARIANTS {
 	"""
 	cat ${mpileup} | ivar variants \
 	-p ${strain_name}_consensus_variant_table \
-	-t 0 -m 1 -q 1 -r ${refseq}
+	-t 0 -m 1 -q 1 -r ${refseq} -g ${params.refgff}
 	"""
 	
 }
