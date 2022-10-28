@@ -8,33 +8,46 @@ This pipeline was designed to update Pangolin lineages for an arbitrary number o
 2. Identifying putative prolonged infections from the now-reclassified consensus sequences.
 3. Classifying "RBD Mutation Level," a metric for how evolutionarily advanced an infection is, for each sample sequenced since the emergence of lineage BA.2 (learn more about this lineage on [Open cov-Spectrum](https://open.cov-spectrum.org/explore/United%20States/AllSamples/AllTimes/variants?pangoLineage=BA.2&) and on [outbreak.info](https://outbreak.info/situation-reports?pango=BA.2)).
 
+For each of these three steps, the pipeline has two modes: An "all sequences mode" and a "runs of interest mode." If no runs of interest are specified in the command line or configuration file (more details below), it will default to finding and processing all FASTA files in the provided file path. If runs of interest are provided, it will only run on those runs' sequences.
+
 ## Quick Start
 
-If you already have miniconda3 and NextFlow installed on your system, simply invoke the pipeline with:
+If you already have Docker and NextFlow installed on your system, simply invoke the pipeline with:
 
 ```
 nextflow run dholab/AVRL-pango-updator -latest \
---update_pango true \
---identify_long_infections true \
---classify_mutation_levels true \
---data_dir "/abolute/path/to/your/data/files/" \
---results results/ \
--profile conda
+--data_dir /abolute/path/to/your/data/files/ \
+--results /abolute/path/to/your/results/
 ```
 
-Alternatively, if you prefer to use Docker, invoke the pipeline with the Docker profile (_NOTE: This arm of the pipeline is still under development_), like so:
+Alternatively, you can also specify which analyses you would like to skip, like so:
 
 ```
 nextflow run dholab/AVRL-pango-updator -latest \
---update_pango true \
---identify_long_infections true \
---classify_mutation_levels true \
---data_dir "/abolute/path/to/your/data/files/" \
---results results/ \
--profile docker
+--update_pango false \
+--identify_long_infections false \
+--classify_mutation_levels false \
+--data_dir /abolute/path/to/your/data/files/ \
+--results /abolute/path/to/your/results/
 ```
 
-If you do not have NextFlow, miniconda3 and/or Docker installed on your system, or you want more information about the pipeline's configuration, proceed to the following steps.
+If you do not have NextFlow, miniconda3 and/or Docker installed on your system, or you want more information about the pipeline's configuration, proceed to the detailed instructions after the AVRL usage section.
+
+#### A Note on In-House Usage at AVRL
+
+This pipeline was originally developed for use at the [AIDS Vaccine Research Laboratory (AVRL)](https://dholk.primate.wisc.edu/wiki/home/page.view?name=home_index) at the University of Wisconsin-Madison. If you are on staff at AVRL, the pipeline can be invoked using its defaults with a simpler command:
+
+To run the pipeline on all available sequences and perform all analyses, simply run:
+
+```
+nextflow run dholab/AVRL-pango-updator -latest
+```
+
+To run the pipeline on specific sequencing runs, use this command with the "DHO\_" experiment numbers of interest in a comma-separated list:
+
+```
+nextflow run dholab/AVRL-pango-updator -latest --runs_of_interest DHO_12345,DHO_9789
+```
 
 ## Detailed Setup Instructions
 
@@ -48,9 +61,9 @@ git clone https://github.com/dholab/AVRL-pango-updator.git .
 
 After the repository has downloaded, you may need to set the pipeline's scripts to executable with `chmod +x bin/*`, though this should already be done.
 
-If you choose to use conda to organize software dependencies with `profile conda`, we recommend you install the miniconda python distribution, if you haven't already: [https://docs.conda.io/en/latest/miniconda.html](https://docs.conda.io/en/latest/miniconda.html)
+If you choose to use conda to organize software dependencies with `-profile conda`, we recommend you install the miniconda python distribution, if you haven't already: [https://docs.conda.io/en/latest/miniconda.html](https://docs.conda.io/en/latest/miniconda.html)
 
-If you choose to use Docker to organize software dependencies with `-profile docker` (_NOTE: As mentioned above, this arm of the pipeline is still under development_), the Docker engine must be installed. To do so, simply visit the Docker installation page at [https://docs.docker.com/get-docker/](https://docs.docker.com/get-docker/).
+If you choose to use Docker to organize software dependencies, as is the pipeline's default, the Docker engine must be installed. To do so, simply visit the Docker installation page at [https://docs.docker.com/get-docker/](https://docs.docker.com/get-docker/).
 
 ### Nextflow Installation
 
@@ -85,19 +98,18 @@ nextflow run main.nf \
 --update_pango true \
 --identify_long_infections true \
 --classify_mutation_levels true \
---data_dir "/abolute/path/to/your/data/files/" \
---results results/ \
--profile conda
+--data_dir /abolute/path/to/your/data/files/ \
+--results results/
 ```
 
-This command specifies some key information for the pipeline:
+This command will run the pipeline on all available FASTA files ("all sequences mode") and specifies some key information for the pipeline:
 
 - `--update_pango true` tells the pipeline to update Pangolin
 - `--identify_long_infections` tells the pipeline to find putative prolonged infections
 - `--classify_mutation_levels` tells the pipeline to classify samples according to the RBD mutation level
 - `--data_dir` tells the pipeline where to look for input FASTA files. Note that this pipeline is currently written to find FASTA files in sequencing run subdirectories called `gisaid/`, as is the case in the sequencing process at [AVRL](https://dholk.primate.wisc.edu/wiki/home/page.view?name=home_index). This hard-coding will be replaced with something more flexible in future updates.
-- `--results` tells the workflow where to place output files. This can be an absolute path to any location on your system, or a relative path within the workflow directory.
-- `-profile conda`: single-dash flags modify the behavior of NextFlow itself, whereas double-dash flags specify parameters in the configuration file `nextflow.config`. Here, we specify that NextFlow should use conda to organize software dependencies, though you can use `-profile docker` instead.
+- `--results` tells the workflow where to place output files. This can be an absolute path to any location on your system, or a relative path within the workflow directory. By default, results will be placed in a subdirectory of the workflow directory called `results`.
+- Note also that the pipeline supports using conda or Singularity instead of Docker; do so by adding `-profile conda` or `-profile singularity` to the nextflow run command. Note that the `-profile` flag has only one dash because single-dash flags modify the behavior of NextFlow itself, whereas double-dash flags specify parameters in the configuration file `nextflow.config`. Here, we do not specify a profile, so Nextflow uses Docker as is specified in its standard profile.
 
 If the pipeline crashes for any reason, simply resume it with:
 
@@ -108,9 +120,18 @@ nextflow run main.nf \
 --classify_mutation_levels true \
 --data_dir "/abolute/path/to/your/data/files/" \
 --results results/ \
--profile conda \
 -resume
 ```
+
+To run the pipeline on only a few sequencing runs of interest, specify those runs with the `--runs_of_interest` flag, separated by commas:
+
+```
+nextflow run main.nf --runs_of_interest run1,run2,run3
+```
+
+By only specifying the `--runs_of_interest` flag, the pipeline will perform all analyses by default and will use its default input and results directory settings. These can be found in the file `nextflow.config`.
+
+_NOTE_ that the run names you specified must also be the name of a folder within which the FASTA files can be found.
 
 ## Pipeline Compute Resources
 
@@ -136,11 +157,12 @@ This pipeline is configured with parameters in the file `nextflow.config`, many 
 The configuration parameters include:
 
 - `data_dir`: Absolute path to the directory where subdirectories for each sequencing run are stored.
-- `results`: Where to place results
-- `refgff`: Path to SARS-CoV-2 annotations
-- `identify_long_infections`: whether to identify (true or false) potential long infections (Default: `true`)
-- `days_of_infection`: How many days past lineage designation to consider an infection prolonged
-- `classify_mutation_levels`: whether to classify into BA.2-based RBD mutation levels
+- `results`: Where to place results. If the path is relative, the results directory will be created within the workflow directory.
+- `refgff`: Path to SARS-CoV-2 annotations. This is not used in the current version of the pipeline but may be implemented in the future.
+- `distribute_results`: whether to distribute pango lineage reports for each FASTA (`true` or `false`) into the directories where those FASTA files were found (Default: `false`). The lineage reports will contain the date they were created in the file name, allowing you to compare lineage reports from different dates and different versions of pangolin.
+- `identify_long_infections`: whether to identify (`true` or `false`) potential long infections (Default: `true`)
+- `days_of_infection`: How many days past lineage designation to consider an infection prolonged (Default: 240)
+- `classify_mutation_levels`: whether to classify into BA.2-based RBD mutation levels (`true` or `false`; default is `true`)
   - This process uses an R script to trim down all observed variants to only those in the Spike protein receptor binding domain, i.e. Spike amino acid residues 319–541. It then adds the count of RBD mutations——an RBD mutation "level", a la Cornelius Roemer's method for tracking convergent evolution among SARS-CoV-2 lineages——to the new pango lineage classifications.
 - `update_pango`: whether to update pango to the latest version (`true` or `false`; default is `true`)
 - `docker_reg`: Docker registry to use. In the past we have used 'dockerreg.chtc.wisc.edu/dabaker3'
