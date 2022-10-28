@@ -24,7 +24,7 @@ workflow {
 	// input channel for consensus sequences 
 	ch_consensus_seqs = Channel
 		.fromPath( "${params.data_dir}/DHO*/gisaid/*.fasta" )
-		.filter { !it.contains(" copy") }
+		.filter { !it.toString().contains(" copy") }
 	
 	ch_runs_of_interest = Channel
 		.fromPath( params.runs )
@@ -466,7 +466,7 @@ process MAP_ALL_TO_BA_2 {
 	sample = fasta.getBaseName() 
 	"""
 	strain=`head -n 1 ${fasta}`
-	minimap2 -t 1 -ax asm5 ${refseq} ${fasta} > ${sample}.sam
+	minimap2 -t 1 -ax asm5 ${refseq} "${fasta}" > ${sample}.sam
 	"""
 	
 }
@@ -498,6 +498,9 @@ process MAP_TARGETS_TO_BA_2 {
 process CALL_RBD_VARIANTS {
 	
 	// This process creates a simple table of mutations from BA.2
+	
+	errorStrategy 'retry'
+	maxRetries 4
 	
 	memory '1 GB'
 	
