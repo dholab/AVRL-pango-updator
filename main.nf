@@ -196,6 +196,7 @@ process RECLASSIFY_ALL_LINEAGES {
 	publishDir "${run_dir}", pattern: '*.csv', mode: 'copy'
 	
 	cpus 1
+	time { 5.minutes * task.attempt }
 	errorStrategy 'retry'
 	maxRetries 4
 	
@@ -503,6 +504,7 @@ process CALL_RBD_VARIANTS {
 	maxRetries 4
 	
 	memory '1 GB'
+	time '5minutes'
 	
 	input:
 	each path(refseq)
