@@ -36,6 +36,7 @@ if (nrow(long_inf_table)==0){
 	
 	null_row <- rep(NA, times = ncol(long_inf_table))
 	null_row[1] <- "No putative long infections were identified in this dataset."
+	null_row <- t(as.data.frame(null_row)) ; rownames(null_row) <- NULL
 	long_inf_table <- rbind(long_inf_table, null_row)
 	
 }
