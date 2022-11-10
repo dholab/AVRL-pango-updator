@@ -7,7 +7,7 @@ nextflow.enable.dsl = 2
 // DERIVATIVE PARAMETER SPECIFICATION
 // --------------------------------------------------------------- //
 // Derivative parameters, mostly for making specific results folders
-params.runs = file('${params.resources}/runs_of_interest.csv')
+params.runs = file( params.run_file )
 params.runs.text = params.runs_of_interest
 params.lineage_reports = params.results + "/" + params.date + "_pangolin_reports"
 if( params.data_dir == "/Volumes/GoogleDrive/Shared drives/2019-nCoV open research team/Sequencing Data"){
