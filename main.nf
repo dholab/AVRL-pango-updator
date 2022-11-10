@@ -9,8 +9,11 @@ nextflow.enable.dsl = 2
 // Derivative parameters, mostly for making specific results folders
 params.runs = file('resources/runs_of_interest.csv')
 params.runs.text = params.runs_of_interest
-if( params.distribute_results == false ){
-	params.lineage_reports = params.results + "/" + params.date + "_pangolin_reports"
+params.lineage_reports = params.results + "/" + params.date + "_pangolin_reports"
+if( params.data_dir == "/Volumes/GoogleDrive/Shared drives/2019-nCoV open research team/Sequencing Data"){
+	params.input_path = params.data_dir + "/DHO*/gisaid/*.fasta"
+} else {
+	params.input_path = params.data_dir + "/**/*.fasta"
 }
 // --------------------------------------------------------------- //
 
@@ -23,7 +26,7 @@ workflow {
 	
 	// input channel for consensus sequences 
 	ch_consensus_seqs = Channel
-		.fromPath( "${params.data_dir}/DHO*/gisaid/*.fasta" )
+		.fromPath( params.input_path )
 		.filter { !it.toString().contains(" copy") }
 	
 	ch_runs_of_interest = Channel
@@ -237,11 +240,15 @@ process FIND_TARGET_SEQS {
 	val experiment
 	
 	output:
-	tuple env(fasta), val("${params.data_dir}/${experiment}/gisaid/"), val(experiment)
+	tuple env(fasta), val(parentdir), val(experiment)
 	
 	script:
+	if( params.data_dir == "/Volumes/GoogleDrive/Shared drives/2019-nCoV open research team/Sequencing Data")
+		parentdir = params.data_dir + "/" + experiment + "/gisaid/"
+	else 
+		parentdir = params.data_dir + "/" + experiment + "/"
 	"""
-	fasta=`find "${params.data_dir}/${experiment}/gisaid/" -type f -name "*.fasta"`
+	fasta=`find "${parentdir}" -maxdepth 2 -type f -name "*.fasta"`
 	"""
 	
 }
