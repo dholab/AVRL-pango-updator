@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
 
-fasta <- read.delim(args[1], header = F)
+fasta <- read.delim(as.character(args[1]), header = F)
 seq_limits <- data.frame(deflines = fasta[which(grepl(">", fasta$V1, fixed = T)),],
 						 deflines_indices = which(grepl(">", fasta$V1, fixed = T)),
 						 seq_ends = c(which(grepl(">", fasta$V1, fixed = T))[2]-1,
