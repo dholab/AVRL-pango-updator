@@ -499,7 +499,6 @@ process EXTRACT_SAMPLE {
 	tuple path(fasta), val(sample), val(strain)
 	
 	output:
-	
 	tuple path("*.fasta"), val(sample), val(strain)
 	
 	script:
@@ -564,11 +563,10 @@ process ALIGN_TARGETS_TO_BA_2 {
 process EXTRACT_TARGET_SAMPLE {
 	
 	input:
-	tuple path(fasta), val(sample), env(strain)
+	tuple path(fasta), val(sample), val(strain)
 	
 	output:
-	
-	tuple path("*.fasta"), val(sample), env(strain)
+	tuple path("*.fasta"), val(sample), val(strain)
 	
 	script:
 	"""
@@ -587,7 +585,7 @@ process MAP_TARGETS_TO_BA_2 {
 	
 	input:
 	each path(refseq)
-	tuple path(fasta), val(sample), env(strain)
+	tuple path(fasta), val(sample), val(strain)
 	
 	output:
 	tuple path("*.sam"), val(sample), val(strain)
@@ -624,8 +622,7 @@ process CALL_RBD_VARIANTS {
 	callvariants.sh -Xmx1g \
 	in=${sam} out=${strain_name}.vcf \
 	ref=${refseq} samstreamer=f clearfilters \
-	ploidy=1 mincov=0 callsub=t calldel=t callins=t overwrite=t # && \
-	# gunzip ${strain_name}.vcf.gz
+	ignorejunk ploidy=1 mincov=0 callsub=t calldel=t callins=t overwrite=t
 	"""
 	
 }
