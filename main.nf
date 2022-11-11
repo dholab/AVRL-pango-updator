@@ -10,6 +10,7 @@ nextflow.enable.dsl = 2
 params.runs = file( params.run_file )
 params.runs.text = params.runs_of_interest
 params.lineage_reports = params.results + "/" + params.date + "_pangolin_reports"
+params.sample_vcfs = params.results + "/" + params.date + "_sample_vcfs"
 if( params.data_dir == "/Volumes/GoogleDrive/Shared drives/2019-nCoV open research team/Sequencing Data"){
 	params.input_path = params.data_dir + "/DHO*/gisaid/*.fasta"
 } else {
@@ -99,19 +100,37 @@ workflow {
 		UNZIP_LINEAGE_SEQS.out
 	)
 	
-	MAP_ALL_TO_BA_2 (
+	ALIGN_ALL_TO_BA_2 ( 
 		ISOLATE_BA_2.out,
 		ch_consensus_seqs
 			.filter { it.lastModified() > (new Date("07/12/2021").getTime()) }
 			.splitFasta( file: true )
 	)
 	
-	MAP_TARGETS_TO_BA_2 (
+	EXTRACT_SAMPLE ( 
+		ALIGN_ALL_TO_BA_2.out
+	)
+	
+	MAP_ALL_TO_BA_2 (
+		ISOLATE_BA_2.out,
+		EXTRACT_SAMPLE.out
+	)
+	
+	ALIGN_TARGETS_TO_BA_2 ( 
 		ISOLATE_BA_2.out,
 		FIND_TARGET_SEQS.out
 			.map { fasta, parentdir, experiment -> file(fasta) }
 			.filter { file(it).lastModified() > (new Date("07/12/2021").getTime()) }
 			.splitFasta( file: true )
+	)
+	
+	EXTRACT_TARGET_SAMPLE ( 
+		ALIGN_TARGETS_TO_BA_2.out
+	)
+	
+	MAP_TARGETS_TO_BA_2 (
+		ISOLATE_BA_2.out,
+		EXTRACT_TARGET_SAMPLE.out
 	)
 	
 	CALL_RBD_VARIANTS (
@@ -448,6 +467,48 @@ process ISOLATE_BA_2 {
 	"""
 }
 
+process ALIGN_ALL_TO_BA_2 {
+	
+	errorStrategy 'retry'
+	maxRetries 4
+	
+	time '5minutes'
+	
+	input:
+	each path(refseq)
+	path fasta
+	
+	output:
+	tuple path("*.fasta"), val(sample), env(strain)
+	
+	when:
+	params.runs_of_interest.isEmpty()
+	
+	script:
+	sample = fasta.getBaseName() 
+	"""
+	strain=`head -n 1 ${fasta}`
+	cat *.fasta | muscle -diags -maxIters 1 -out ${sample}_BA2_MSA.fasta
+	"""
+	
+}
+
+process EXTRACT_SAMPLE {
+	
+	input:
+	tuple path(fasta), val(sample), val(strain)
+	
+	output:
+	
+	tuple path("*.fasta"), val(sample), val(strain)
+	
+	script:
+	"""
+	extract_sample_seq.R ${fasta} ${sample}
+	"""
+	
+}
+
 process MAP_ALL_TO_BA_2 {
 	
 	// This process maps each consensus sequence from each run after the designation
@@ -462,19 +523,56 @@ process MAP_ALL_TO_BA_2 {
 	
 	input:
 	each path(refseq)
-	path fasta
+	tuple path(fasta), val(sample), val(strain)
 	
 	output:
-	tuple path("*.sam"), val(sample), env(strain)
+	tuple path("*.sam"), val(sample), val(strain)
 	
 	when:
 	params.runs_of_interest.isEmpty()
 	
 	script:
+	"""
+	minimap2 -t 1 -a ${refseq} "${fasta}" > ${sample}.sam
+	"""
+	
+}
+
+process ALIGN_TARGETS_TO_BA_2 {
+	
+	errorStrategy 'retry'
+	maxRetries 4
+	
+	time '5minutes'
+	
+	input:
+	each path(refseq)
+	path fasta
+	
+	output:
+	tuple path("*.fasta"), val(sample), env(strain)
+	
+	script:
 	sample = fasta.getBaseName() 
 	"""
 	strain=`head -n 1 ${fasta}`
-	minimap2 -t 1 -ax asm5 ${refseq} "${fasta}" > ${sample}.sam
+	cat *.fasta | muscle -diags -maxIters 1 -out ${sample}_BA2_MSA.fasta
+	"""
+	
+}
+
+process EXTRACT_TARGET_SAMPLE {
+	
+	input:
+	tuple path(fasta), val(sample), env(strain)
+	
+	output:
+	
+	tuple path("*.fasta"), val(sample), env(strain)
+	
+	script:
+	"""
+	extract_sample_seq.R ${fasta} ${sample}
 	"""
 	
 }
@@ -489,16 +587,14 @@ process MAP_TARGETS_TO_BA_2 {
 	
 	input:
 	each path(refseq)
-	path fasta
+	tuple path(fasta), val(sample), env(strain)
 	
 	output:
-	tuple path("*.sam"), val(sample), env(strain)
+	tuple path("*.sam"), val(sample), val(strain)
 	
 	script:
-	sample = fasta.getBaseName() 
 	"""
-	strain=`head -n 1 ${fasta}`
-	minimap2 -t 1 -ax asm5 ${refseq} ${fasta} > ${sample}.sam
+	minimap2 -t 1 -a ${refseq} ${fasta} > ${sample}.sam
 	"""
 	
 }
@@ -506,6 +602,8 @@ process MAP_TARGETS_TO_BA_2 {
 process CALL_RBD_VARIANTS {
 	
 	// This process creates a simple table of mutations from BA.2
+	
+	publishDir params.sample_vcfs, mode: 'copy', overwrite: true
 	
 	errorStrategy 'retry'
 	maxRetries 4
@@ -525,7 +623,7 @@ process CALL_RBD_VARIANTS {
 	"""
 	callvariants.sh -Xmx1g \
 	in=${sam} out=${strain_name}.vcf \
-	ref=${refseq} samstreamer=t clearfilters \
+	ref=${refseq} samstreamer=f clearfilters \
 	ploidy=1 mincov=0 callsub=t calldel=t callins=t overwrite=t # && \
 	# gunzip ${strain_name}.vcf.gz
 	"""
@@ -581,7 +679,7 @@ process CLASSIFY_LEVELS {
 	script:
 	"""
 	rbd_lineage_classifer.R && \
-	rm -f ${params.results}/all_lineage_reports*.csv
+	rm -f ${params.results}/all_lineage_reports_${params.date}.csv
 	"""
 }
 // --------------------------------------------------------------- //
