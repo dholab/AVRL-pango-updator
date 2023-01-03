@@ -532,7 +532,8 @@ process MAP_ALL_TO_BA_2 {
 	
 	script:
 	"""
-	minimap2 -t 1 -a ${refseq} "${fasta}" > ${sample}.sam
+	minimap2 -x asm10 --frag=yes --secondary=yes -N 5 -p 0.8 -t 1 -a \
+	${refseq} "${fasta}" > ${sample}.sam
 	"""
 	
 }
@@ -592,7 +593,8 @@ process MAP_TARGETS_TO_BA_2 {
 	
 	script:
 	"""
-	minimap2 -t 1 -a ${refseq} ${fasta} > ${sample}.sam
+	minimap2 -x asm10 --frag=no --secondary=no -t 1 -a \
+	${refseq} "${fasta}" > ${sample}.sam
 	"""
 	
 }
@@ -621,8 +623,9 @@ process CALL_RBD_VARIANTS {
 	"""
 	callvariants.sh -Xmx1g \
 	in=${sam} out=${strain_name}.vcf \
-	ref=${refseq} samstreamer=f clearfilters \
-	ignorejunk ploidy=1 mincov=0 callsub=t calldel=t callins=t overwrite=t
+	ref=${refseq} samstreamer=t clearfilters \
+	fixjunk realign=t secondary=t qtrim=f unclip=g ploidy=1 mincov=0 \
+	callsub=t calldel=t callins=t overwrite=t
 	"""
 	
 }
