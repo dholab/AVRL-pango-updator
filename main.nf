@@ -217,10 +217,8 @@ process RECLASSIFY_ALL_LINEAGES {
 	tag "${experiment_number}"
 	publishDir "${run_dir}", pattern: '*.csv', mode: 'copy'
 	
-	cpus 1
-	time { 5.minutes * task.attempt }
-	errorStrategy 'retry'
-	maxRetries 4
+	errorStrategy { task.attempt < 3 ? 'retry' : 'ignore' }
+	maxRetries 3
 	
 	input:
 	each cue
