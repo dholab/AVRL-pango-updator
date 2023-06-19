@@ -235,6 +235,7 @@ process RECLASSIFY_ALL_LINEAGES {
 		run_dir = parentdir.toString().replaceAll('/gisaid','')
 	else 
 		run_dir = params.lineage_reports
+	println parentdir
 	experiment_number = 'DHO_' + parentdir.toString().split("DHO_")[1].replaceAll('/gisaid','')
 	
 	"""
