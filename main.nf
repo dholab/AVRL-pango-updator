@@ -260,7 +260,7 @@ process FIND_TARGET_SEQS {
 	tuple env(fasta), val(parentdir), val(experiment)
 	
 	script:
-	if( params.data_dir.contains("2019-nCoV open research team/Sequencing Data")
+	if( params.data_dir.contains("2019-nCoV open research team/Sequencing Data") )
 		parentdir = params.data_dir + "/" + experiment + "/gisaid/"
 	else 
 		parentdir = params.data_dir + "/" + experiment + "/"
