@@ -219,6 +219,8 @@ process RECLASSIFY_ALL_LINEAGES {
 	
 	errorStrategy { task.attempt < 3 ? 'retry' : 'ignore' }
 	maxRetries 3
+
+	cpus 2
 	
 	input:
 	each cue
