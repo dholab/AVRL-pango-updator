@@ -11,7 +11,7 @@ params.runs = file( params.run_file )
 params.runs.text = params.runs_of_interest
 params.lineage_reports = params.results + "/" + params.date + "_pangolin_reports"
 params.sample_vcfs = params.results + "/" + params.date + "_sample_vcfs"
-if( params.data_dir == "/Volumes/GoogleDrive/Shared drives/2019-nCoV open research team/Sequencing Data"){
+if( params.data_dir.contains("2019-nCoV open research team/Sequencing Data")){
 	params.input_path = params.data_dir + "/DHO*/gisaid/*.fasta"
 } else {
 	params.input_path = params.data_dir + "/**/*.fasta"
@@ -235,7 +235,6 @@ process RECLASSIFY_ALL_LINEAGES {
 		run_dir = parentdir.toString().replaceAll('/gisaid','')
 	else 
 		run_dir = params.lineage_reports
-	println parentdir
 	experiment_number = 'DHO_' + parentdir.toString().split("DHO_")[1].replaceAll('/gisaid','')
 	
 	"""
