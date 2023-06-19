@@ -260,7 +260,7 @@ process FIND_TARGET_SEQS {
 	tuple env(fasta), val(parentdir), val(experiment)
 	
 	script:
-	if( params.data_dir == "/Volumes/GoogleDrive/Shared drives/2019-nCoV open research team/Sequencing Data")
+	if( params.data_dir.contains("2019-nCoV open research team/Sequencing Data")
 		parentdir = params.data_dir + "/" + experiment + "/gisaid/"
 	else 
 		parentdir = params.data_dir + "/" + experiment + "/"
@@ -421,7 +421,7 @@ process GET_LINEAGE_SEQS {
 	
 	script:
 	"""
-	curl -fsSL 'https://github.com/corneliusroemer/pango-sequences/blob/main/data/pango_consensus_sequences.fasta.zstd?raw=true' > pango_consensus_sequences.fasta.zstd
+	curl -fsSL 'https://github.com/corneliusroemer/pango-sequences/raw/main/data/pango-consensus-sequences_genome-nuc.fasta.zst' > pango_consensus_sequences.fasta.zstd
 	"""
 }
 
